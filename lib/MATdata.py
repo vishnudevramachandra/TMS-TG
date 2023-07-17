@@ -35,6 +35,7 @@ class MATdata:
         s = dset.shape
         ty = dset.dtype
         out = np.empty(s, dtype=ty)
+
         if self.slice == None:
             dset.read_direct(out)
         else:
@@ -56,4 +57,4 @@ if __name__ == '__main__':
     data = MATdata(hdf5['s'])
 
     # navigate through the b-tree to acquire the dataset of interest
-    data['SpikeModel/Y']
+    data['SpikeModel/ClusterAssignment/data/'][0,0]
