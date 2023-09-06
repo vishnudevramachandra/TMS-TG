@@ -1,11 +1,12 @@
 import numpy as np
 import pandas as pd
-from MATfile import MATfile
-from MATdata import MATdata
+from matfile import MATfile
+from matdata import MATdata
 
 
-def PSTH(data=None, time_win=None, avg={'win': 'rect', 'width': 1, 'overlap': 0}):
+def PSTH(data=None, time_win=None, avg=None):
     assert data is not None and time_win is not None
+    avg = {'win': 'rect', 'width': 1, 'overlap': 0} if avg is None else avg
 
     spiketimes = data['SpikeModel/SpikeTimes/data'].flatten()
     refs = data['SpikeModel/ClusterAssignment/data'].flatten()
@@ -17,25 +18,27 @@ def PSTH(data=None, time_win=None, avg={'win': 'rect', 'width': 1, 'overlap': 0}
     psth_Y = np.zeros((len(psth_T), len(cluster_idx), len(time_win)), dtype=spiketimes.dtype)
 
     match avg['win']:
-        case 'rect':
-            func = lambda x: sum(np.logical_and(np.greater(x, -avg['width'] / 2),
-                                                np.less_equal(x, avg['width'] / 2))
-                                 ) / (avg['width'] * 1e-3)
-
         case 'gauss':
-            func = lambda x: sum(np.exp(-0.5 * (x / avg['width']) ** 2) /
+            def f(x):
+                return sum(np.exp(-0.5 * (x / avg['width']) ** 2) /
                                  (avg['width'] * np.sqrt(2 * np.pi))) / 1e-3
+
+        case _:
+            def f(x):
+                return sum(np.logical_and(np.greater(x, -avg['width'] / 2),
+                                          np.less_equal(x, avg['width'] / 2))
+                           ) / (avg['width'] * 1e-3)
 
     # loop over trials
     for trl_n in range(len(time_win)):
         # loop over time steps
         for t_idx, t in enumerate(psth_T):
             t += time_win[trl_n][0]
-            # loop over clusters (specifically the spiketimes)
+            # loop over clusters (use spiketimes of each cluster to assign firing rate)
             for clust_n, spktms in enumerate(clust_spktms):
                 diff = spktms - t
-                # insert the spike rate for each bin, for each neuron, for each trial
-                psth_Y[t_idx, clust_n, trl_n] = func(diff)
+                # insert the firing rate for each bin, for each neuron, for each trial
+                psth_Y[t_idx, clust_n, trl_n] = f(diff)
 
     return psth_Y, psth_T
 
@@ -51,4 +54,4 @@ if __name__ == '__main__':
     trigger = [(x + start_t, x + end_t) for x in trigger[0::1]]
 
     psth = PSTH(data, trigger)
-    psth = PSTH(data, trigger, avg={'win': 'gauss', 'width': 3, 'overlap': 1/3})
+    psth = PSTH(data, trigger, avg={'win': 'gauss', 'width': 3, 'overlap': 1 / 3})

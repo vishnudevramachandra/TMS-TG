@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import h5py
 from tkinter import filedialog
-from MATdata import MATdata
+from matdata import MATdata
 
 class MATfile:
     """MATfile
