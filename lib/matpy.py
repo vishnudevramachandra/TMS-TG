@@ -1,9 +1,8 @@
 import numpy as np
-import pandas as pd
 import h5py
 from tkinter import filedialog
 
-
+# TODO: Change to metaclass that assigns h5py datasets as attributes
 class MATdata(object):
     """Enables easy access to data contained in h5py group object
 
@@ -80,8 +79,9 @@ class MATfile(object):
         return f'{cls}<{self.fname}>'
 
     def __del__(self):
-        self.__f.close()
-        print(f'{self.fname} closed successfully')
+        if hasattr(self, "__f"):
+            self.__f.close()
+        print(f'{self.fname.split("/")[-1]} closed successfully')
 
     def read(self):
         self.__f = h5py.File(self.fname, 'r')
@@ -91,9 +91,10 @@ class MATfile(object):
         try:
             return self.__f['s']
         except KeyError:
-            print(f'.mat-file is not of kind \'{self.kind}\'')
+            self.__f.close()
+            raise KeyError(f'.mat-file is not of kind \'{self.kind}\'')
         finally:
-            print('Matlab file successfully read')
+            print(f'{self.fname.split("/")[-1]} successfully read')
             # close the file here
 
 
