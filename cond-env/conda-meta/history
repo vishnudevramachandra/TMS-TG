@@ -17,3 +17,22 @@
 +defaults/win-64::xz-5.4.2-h8cc25b3_0
 +defaults/win-64::zlib-1.2.13-h8cc25b3_0
 # update specs: ['python=3.10']
+==> 2023-09-11 13:37:13 <==
+# cmd: C:\ProgramData\Anaconda3\Scripts\conda-script.py install --yes --json --force-pscheck --prefix G:\Vishnu\Analysis\TMS-TG\cond-env numba
+# conda version: 4.12.0
+-defaults/win-64::ca-certificates-2023.05.30-haa95532_0
+-defaults/win-64::openssl-3.0.9-h2bbff1b_0
++defaults/win-64::blas-1.0-mkl
++defaults/win-64::ca-certificates-2023.08.22-haa95532_0
++defaults/win-64::intel-openmp-2023.1.0-h59b6b97_46319
++defaults/win-64::llvmlite-0.40.0-py310hf2fb9eb_0
++defaults/win-64::mkl-2023.1.0-h6b88ed4_46357
++defaults/win-64::mkl-service-2.4.0-py310h2bbff1b_1
++defaults/win-64::mkl_fft-1.3.6-py310h4ed8f06_1
++defaults/win-64::mkl_random-1.2.2-py310h4ed8f06_1
++defaults/win-64::numba-0.57.1-py310h4ed8f06_0
++defaults/win-64::numpy-1.24.3-py310h055cbcc_1
++defaults/win-64::numpy-base-1.24.3-py310h65a83cf_1
++defaults/win-64::openssl-3.0.10-h2bbff1b_2
++defaults/win-64::tbb-2021.8.0-h59b6b97_0
+# update specs: ['numba']
