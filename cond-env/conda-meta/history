@@ -36,3 +36,14 @@
 +defaults/win-64::openssl-3.0.10-h2bbff1b_2
 +defaults/win-64::tbb-2021.8.0-h59b6b97_0
 # update specs: ['numba']
+==> 2023-09-18 18:58:46 <==
+# cmd: C:\ProgramData\Anaconda3\Scripts\conda-script.py install -p G:/Vishnu/Analysis/tms-tg/cond-env intel-cmplr-lib-rt -y
+# conda version: 4.12.0
++defaults/win-64::intel-cmplr-lib-rt-2023.1.0-haa95532_46319
+# update specs: ['intel-cmplr-lib-rt']
+==> 2023-09-19 13:18:13 <==
+# cmd: C:\ProgramData\Anaconda3\Scripts\conda-script.py install -p G:/Vishnu/Analysis/tms-tg/cond-env scipy -y
+# conda version: 4.12.0
++defaults/win-64::icc_rt-2022.1.0-h6049295_2
++defaults/win-64::scipy-1.11.1-py310h309d312_0
+# update specs: ['scipy']

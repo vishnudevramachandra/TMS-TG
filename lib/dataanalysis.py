@@ -28,24 +28,26 @@ def peristim_firingrate_decorator(fcn):
         ps_T = np.arange(0, timeIntervals[0][1] - timeIntervals[0][0], step)
         ps_FR = np.zeros((len(timeIntervals), len(ps_T), len(spikeTimes)), dtype=np.float_)
 
-        return fcn(ps_FR, ps_T, spikeTimes, timeIntervals, f)
+        nb.set_num_threads(max(1, int(nb.config.NUMBA_NUM_THREADS // 1.333)))
+        ps_FR, ps_T = fcn(ps_FR, ps_T, spikeTimes, timeIntervals, f)
+        nb.set_num_threads(nb.config.NUMBA_DEFAULT_NUM_THREADS)
+        return ps_FR, ps_T
 
     return wrapper
 
 
 @peristim_firingrate_decorator
-@nb.jit(nopython=True)
+@nb.jit(nopython=True, parallel=True)
 def peristim_firingrate(
         ps_FR, ps_T, spikeTimes, timeIntervals, smoothingFcn) -> tuple[np.ndarray, np.ndarray]:
-    for trl_n, timeInterval in enumerate(timeIntervals):
+    for trl_n in nb.prange(len(timeIntervals)):
         # loop over time steps
         for step_n, step in enumerate(ps_T):
-            step += timeInterval[0]
+            step += timeIntervals[trl_n][0]
             # loop over neurons (use timestamps of each neuron to assign firing rate)
             for i, singleUnitSpikeTimes in enumerate(spikeTimes):
-                diff = step - singleUnitSpikeTimes
                 # insert the firing rate for each neuron, for each time step, for each trial
-                ps_FR[trl_n, step_n, i] = smoothingFcn(diff)
+                ps_FR[trl_n, step_n, i] = smoothingFcn(step - singleUnitSpikeTimes)
     return ps_FR, ps_T
 
 
