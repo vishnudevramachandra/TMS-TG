@@ -10,7 +10,7 @@ def peristim_firingrate_decorator(fcn):
     def wrapper(spikeTimes: list[np.ndarray],
                 timeIntervals: list[tuple[float, float]],
                 smoothingParams):
-        assert spikeTimes is not None and timeIntervals is not None
+        assert spikeTimes is not None and timeIntervals is not None, 'Both spikeTimes and timeInterval cannot be None'
 
         smWidth = smoothingParams['width']  # needed as numba.jit cannot optimize dict type
         match smoothingParams['win']:
@@ -54,7 +54,7 @@ def peristim_firingrate(
 def peristim_timestamp(
         spikeTimes: list[np.ndarray],
         timeIntervals: list[tuple[float, float]]) -> list[list[np.ndarray]]:
-    assert spikeTimes is not None and timeIntervals is not None
+    assert spikeTimes is not None and timeIntervals is not None, 'Both spikeTimes and timeInterval cannot be None'
 
     ps_TS = []
     for singleUnitSpikeTimes in spikeTimes:

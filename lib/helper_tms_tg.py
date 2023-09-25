@@ -3,7 +3,7 @@ import numba as nb
 import pandas as pd
 import re
 from lib.dataanalysis import peristim_firingrate
-
+from collections.abc import Iterator
 
 class PSFR(object):
     """
@@ -20,6 +20,7 @@ class PSFR(object):
     def __set__(self, obj, psfr_params):
         self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T \
             = list(), list(), list(), list()
+
         default_params = type(obj).psfr_default_params
         if not hasattr(obj, '_psfr_params'):
             obj._psfr_params = default_params
@@ -115,9 +116,9 @@ class PSFR(object):
 
             thisEpoch_df = obj.epochinfo.loc[epoch, :]
             num_of_trigs = thisEpoch_df['no. of Trigs'].to_numpy(dtype=int)
-            assert sum(num_of_trigs) == len(trigger)  # that no. of triggers in infofile matches with the data
+            assert sum(num_of_trigs) == len(trigger), 'no. of triggers in infofile does not match with mat-data'
             mso = self._read_MSO(obj.matdata[i])
-            assert all(thisEpoch_df['MSO '] == mso)  # that the mso order in infofile matches with the data
+            assert all(thisEpoch_df['MSO '] == mso), 'mso order in infofile differs from mat-data'
 
             # initialize boolArray[True] for selecting (booleanIndexing) blocks using criterion in ['selectionParams']
             idx = thisEpoch_df['MSO '] == thisEpoch_df['MSO ']
@@ -229,3 +230,27 @@ class LateComponent(object):
 
     def method(self):
         ...
+
+
+class SpikeTimes(Iterator):
+
+    def __call__(self, *args, **kwargs):
+        ...
+
+    def __get__(self, obj, objType):
+        ...
+
+    def __init__(self):
+        self._index = 0
+
+    def __next__(self):
+        if self._index < len(self._index):
+            self._index += 1
+            return 'item'
+        else:
+            self._index = 0
+            raise StopIteration
+
+    def __set__(self, obj, value):
+        ...
+

@@ -4,8 +4,7 @@ import lib.matpy as mp
 import os
 from typing import Optional
 from itertools import zip_longest
-from lib.helper_tms_tg import PSFR, LateComponent
-
+import lib.helper_tms_tg as th
 
 LAYERS = {'L23': (200, 800), 'L4': (800, 1200), 'L5': (1200, 1600), 'L6': (1600, 1900)}
 REGIONS = {'thal': ['BZ', 'CZ'], 'BG': ['STN'], 'MC': ['CFA', 'MC'], 'SC': ['S1', 'SC'], 'VC': ['V1', 'VC']}
@@ -15,6 +14,7 @@ COILPOS = {'MC', 'SC', 'VC'}
 MANIPULATION = {'MUS'}
 
 EPOCHISOLATORS = ['Region', 'Layer', 'CoilHemVsRecHem', 'Mov', 'Depth']
+
 
 class TMSTG(object):
     """TMSTG
@@ -33,8 +33,8 @@ class TMSTG(object):
 
     Attributes
     ---------
-    psfr:                   call 'Peristimulus Firing Rate' and set 'parameters' for computing it
-
+    psfr:       {Descriptor}    get 'Peristimulus Firing Rate' and set 'parameters' for computing it
+    spikeTimes: {Descriptor}    get spikeTimes of single units, set 'index' for selection
     lateComp:
 
     do_multi_indexing:      changes the index of "infofile" {DataFrame} to multiIndex
@@ -42,16 +42,18 @@ class TMSTG(object):
 
     """
     psfr_default_params = {'selectionParams': {
-                               'Epoch': dict(zip_longest(EPOCHISOLATORS, [None]))},
-                           'smoothingParams': {'win': 'gauss', 'width': 2.0, 'overlap': 1 / 2},
-                           'timeWin': (-20, 100),
-                           'trigger': {'TMS': None},
-                           'baselinetimeWin': (-50, -1)}
+        'Epoch': dict(zip_longest(EPOCHISOLATORS, [None]))},
+        'smoothingParams': {'win': 'gauss', 'width': 2.0, 'overlap': 1 / 2},
+        'timeWin': (-20, 100),
+        'trigger': {'TMS': None},
+        'baselinetimeWin': (-50, -1)}
 
-    psfr = PSFR()
+    psfr = th.PSFR()
+    #raster = th.Raster()
+    spikeTimes = th.SpikeTimes()
 
-    # TODO: LateComponent implimentation
-    late_comp = LateComponent()
+    # TODO: LateComponent implementation
+    late_comp = th.LateComponent()
 
     def __init__(self, matdata=None, epochinfo=None) -> None:
 
@@ -67,7 +69,7 @@ class TMSTG(object):
         if infofile is not None:
             epochinfo = pd.read_excel(infofile).dropna()
             epochinfo = cls.do_multi_indexing(epochinfo)
-            _sort_filelist(matlabfnames, epochinfo)
+            cls._sort_filelist(matlabfnames, epochinfo)
         else:
             epochinfo = None
 
@@ -121,42 +123,41 @@ class TMSTG(object):
         ps_FR, ps_T, ps_baseline_FR, ps_baseline_T = self.psfr
 
         if squeezeDim:
-            return np.concatenate([block_psfr.mean(axis=0) for block_psfr in ps_FR], axis=1).T,\
-                   ps_T,\
+            return np.concatenate([block_psfr.mean(axis=0) for block_psfr in ps_FR], axis=1).T, \
+                   ps_T, \
                    np.concatenate([block_bsfr.mean(axis=0) for block_bsfr in ps_baseline_FR], axis=1).T, \
                    ps_baseline_T
         else:
-            return [block_psfr.mean(axis=0, keepdims=True) for block_psfr in ps_FR],\
-                   ps_T,\
+            return [block_psfr.mean(axis=0, keepdims=True) for block_psfr in ps_FR], \
+                   ps_T, \
                    [block_bsfr.mean(axis=0, keepdims=True) for block_bsfr in ps_baseline_FR], \
                    ps_baseline_T
 
+    def _sort_filelist(matlabfnames, epochinfo) -> None:
+        """
+        sorts the order of matlabf<ile>names in the list to be consistent with epoch order
+        """
 
-def _sort_filelist(matlabfnames, epochinfo) -> None:
-    """
-    sorts the order of matlabf<ile>names in the list to be consistent with epoch order
-    """
+        def lookfor_matching_fname(boolArray, *string) -> pd.Series:
 
-    def lookfor_matching_fname(boolArray, *string) -> pd.Series:
+            if (boolArray & matlabfnames.str.contains(string[0])).any() & (len(string) > 1):
+                boolArray &= matlabfnames.str.contains(string[0])
+                return lookfor_matching_fname(boolArray, *string[1:])
+            elif (not (boolArray & matlabfnames.str.contains(string[0])).any()) & (len(string) > 1):
+                return lookfor_matching_fname(boolArray, *string[1:])
+            elif (boolArray & matlabfnames.str.contains(string[0])).any() & (len(string) == 1):
+                return boolArray & matlabfnames.str.contains(string[0])
+            else:
+                return boolArray
 
-        if (boolArray & matlabfnames.str.contains(string[0])).any() & (len(string) > 1):
-            boolArray &= matlabfnames.str.contains(string[0])
-            return lookfor_matching_fname(boolArray, *string[1:])
-        elif (not (boolArray & matlabfnames.str.contains(string[0])).any()) & (len(string) > 1):
-            return lookfor_matching_fname(boolArray, *string[1:])
-        elif (boolArray & matlabfnames.str.contains(string[0])).any() & (len(string) == 1):
-            return boolArray & matlabfnames.str.contains(string[0])
-        else:
-            return boolArray
+        # Use MultiIndexes of epochinfo to set the file order
+        uniqueEpochs = pd.unique(epochinfo.index)
+        for i, uniqueEpoch in enumerate(uniqueEpochs):
+            boolArray = lookfor_matching_fname(np.ones(len(matlabfnames), dtype=bool), *uniqueEpoch)
+            j = boolArray.array.argmax()
+            matlabfnames.iloc[[i, j]] = matlabfnames.iloc[[j, i]]
 
-    # Use MultiIndexes of epochinfo to set the file order
-    uniqueEpochs = pd.unique(epochinfo.index)
-    for i, uniqueEpoch in enumerate(uniqueEpochs):
-        boolArray = lookfor_matching_fname(np.ones(len(matlabfnames), dtype=bool), *uniqueEpoch)
-        j = boolArray.array.argmax()
-        matlabfnames.iloc[[i, j]] = matlabfnames.iloc[[j, i]]
-
-    pass
+        pass
 
 
 if __name__ == '__main__':
