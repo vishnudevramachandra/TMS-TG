@@ -1,23 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="fix: modifying analysis params is now taken care by a separate class">
+    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="refactor: common naming conventions">
+      <change afterPath="$PROJECT_DIR$/figures/figure1/figure1a.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/core/_multiarray_tests.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/core/_multiarray_tests.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/core/_multiarray_umath.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/core/_multiarray_umath.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/fft/_pocketfft_internal.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/fft/_pocketfft_internal.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/linalg/_umath_linalg.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/linalg/_umath_linalg.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_bounded_integers.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_bounded_integers.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_common.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_common.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_generator.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_generator.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_mt19937.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_mt19937.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_pcg64.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_pcg64.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_philox.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_philox.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_sfc64.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/_sfc64.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/bit_generator.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/bit_generator.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/mtrand.cp310-win_amd64.pyd" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Lib/site-packages/numpy/random/mtrand.cp310-win_amd64.pyd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/bin/libcrypto-3-x64.dll" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/bin/libcrypto-3-x64.dll" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/bin/libssl-3-x64.dll" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/bin/libssl-3-x64.dll" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/helper_tms_tg.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/helper_tms_tg.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/test.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/lib/test.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tms_tg.py" beforeDir="false" afterPath="$PROJECT_DIR$/tms_tg.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -40,7 +29,7 @@
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="organizeAsClasses" />
+        <entry key="$PROJECT_DIR$" value="TMSTG_as_RecursiveClass" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -74,95 +63,7 @@
       <recent name="G:\Vishnu\Analysis\tms-tg\data" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.DATAanalysis">
-    <configuration name="DATAanalysis" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="TMS-TG" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/lib" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/lib/DATAanalysis.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="true" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="MATdata" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="TMS-TG" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/lib" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/lib/MATdata.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="true" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="MATfile" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="TMS-TG" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/lib" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/lib/MATfile.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="true" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="Matdata" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="TMS-TG" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/lib" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/lib/Matdata.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="true" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
+  <component name="RunManager" selected="Python.tms_tg">
     <configuration default="true" type="PythonConfigurationType" factoryName="Python">
       <module name="TMS-TG" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -177,6 +78,72 @@
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="dataanalysis" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="TMS-TG" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/lib" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/lib/dataanalysis.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="matfile" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="TMS-TG" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/lib" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/lib/matfile.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="matpy" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="TMS-TG" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/lib" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/lib/matpy.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="true" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -208,18 +175,17 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.DATAanalysis" />
-      <item itemvalue="Python.MATdata" />
-      <item itemvalue="Python.MATfile" />
-      <item itemvalue="Python.Matdata" />
+      <item itemvalue="Python.dataanalysis" />
+      <item itemvalue="Python.matfile" />
+      <item itemvalue="Python.matpy" />
       <item itemvalue="Python.tms_tg" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.Matdata" />
-        <item itemvalue="Python.MATfile" />
-        <item itemvalue="Python.MATdata" />
-        <item itemvalue="Python.DATAanalysis" />
+        <item itemvalue="Python.tms_tg" />
+        <item itemvalue="Python.matpy" />
+        <item itemvalue="Python.matfile" />
+        <item itemvalue="Python.dataanalysis" />
         <item itemvalue="Python.tms_tg" />
       </list>
     </recent_temporary>
@@ -368,19 +334,39 @@
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/lib/DATAanalysis.py</url>
-          <line>56</line>
-          <option name="timeStamp" value="2" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/lib/MATfile.py</url>
-          <line>60</line>
-          <option name="timeStamp" value="3" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/cond-env/Lib/typing.py</url>
           <line>21</line>
           <option name="timeStamp" value="4" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/lib/matpy.py</url>
+          <line>111</line>
+          <option name="timeStamp" value="6" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/lib/dataanalysis.py</url>
+          <line>94</line>
+          <option name="timeStamp" value="71" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/lib/dataanalysis.py</url>
+          <line>90</line>
+          <option name="timeStamp" value="77" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/lib/dataanalysis.py</url>
+          <line>97</line>
+          <option name="timeStamp" value="82" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tms_tg.py</url>
+          <line>171</line>
+          <option name="timeStamp" value="148" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tms_tg.py</url>
+          <line>170</line>
+          <option name="timeStamp" value="168" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

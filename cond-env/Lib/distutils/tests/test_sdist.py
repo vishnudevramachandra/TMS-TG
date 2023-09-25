@@ -406,7 +406,7 @@ class SDistTestCase(BasePyPIRCCommandTestCase):
         self.write_file((self.tmp_dir, 'bad.py'), "# don't pick me!")
         self.write_file((self.tmp_dir, '#bad.py'), "# don't pick me!")
         cmd.run()
-        self.assertEqual(cmd.filelist.files, ['good.py'])
+        self.assertEqual(cmd.filelist.matlabfiles, ['good.py'])
 
     @unittest.skipUnless(ZLIB_SUPPORT, 'Need zlib support to run')
     def test_manual_manifest(self):
@@ -418,7 +418,7 @@ class SDistTestCase(BasePyPIRCCommandTestCase):
         self.write_file((self.tmp_dir, 'README.manual'),
                          'This project maintains its MANIFEST file itself.')
         cmd.run()
-        self.assertEqual(cmd.filelist.files, ['README.manual'])
+        self.assertEqual(cmd.filelist.matlabfiles, ['README.manual'])
 
         f = open(cmd.manifest)
         try:
