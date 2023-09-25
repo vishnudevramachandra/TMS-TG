@@ -24,7 +24,7 @@ class TMSTG(object):
     Parameters
     ----------
     matdata: {List} of MATdata objects that provide access to data on disk
-    epochinfo: {DataFrame} containing read 'infofile' data
+    epochinfo: {DataFrame} of read 'infofile'
 
     Note:   Do not instantiate this class directly. Instead, use...
             TMSTG.load(matlabfnames, ).
@@ -41,16 +41,17 @@ class TMSTG(object):
 
 
     """
-    psfr_default_params = {'selectionParams': {
+    _default_analysis_params = {'selectionParams': {
         'Epoch': dict(zip_longest(EPOCHISOLATORS, [None]))},
         'smoothingParams': {'win': 'gauss', 'width': 2.0, 'overlap': 1 / 2},
         'timeWin': (-20, 100),
         'trigger': {'TMS': None},
         'baselinetimeWin': (-50, -1)}
 
+    analysis_params = th.AnalysisParams(_default_analysis_params)
     psfr = th.PSFR()
-    #raster = th.Raster()
-    spikeTimes = th.SpikeTimes()
+    # psts = th.Raster()
+    spiketimes = th.SpikeTimes()
 
     # TODO: LateComponent implementation
     late_comp = th.LateComponent()
@@ -166,6 +167,6 @@ if __name__ == '__main__':
     matlabfiles = pd.Series(dir_path + '\\' + f for f in os.listdir(dir_path) if f.endswith('.mat'))
     infofile = [dir_path + '\\' + f for f in os.listdir(dir_path) if f.endswith('.xlsx')]
     tms = TMSTG.load(matlabfiles, infofile[0])
-    tms.psfr = {'selectionParams': {'Epoch': {'Region': 'MC'}, 'MT': '>=1'}}
+    tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'MC'}, 'MT': '>=1'}}
     tms.psfr
     tms.psfr

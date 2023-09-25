@@ -5,96 +5,112 @@ import re
 from lib.dataanalysis import peristim_firingrate
 from collections.abc import Iterator
 
-class PSFR(object):
+COLS_WITH_FLOATS = {'MSO ', 'MT', 'no. of Trigs', 'Stimpulses', 'Depth_int'}
+COLS_WITH_STRINGS = {'StimHem', 'CoilDir', 'TG-Injection ', 'RecArea ', 'RecHem', 'Filename'}
+
+
+class AnalysisParams(object):
     """
-    set parameters, compute peri-stimulus firing rate, cache it, and append when demanded
+    Set parameters for selecting a subset of data and analysing it
     """
 
-    cols_with_floats = {'MSO ', 'MT', 'no. of Trigs', 'Stimpulses', 'Depth_int'}
-    cols_with_strings = {'StimHem', 'CoilDir', 'TG-Injection ', 'RecArea ', 'RecHem', 'Filename'}
+    def __init__(self, params):
+        self.__set__(self, params)
+
+    def __set__(self, obj, params):
+        if self == obj:
+            self.analysis_params = params
+
+        else:
+            try:
+                if not isinstance(params, dict):
+                    params = self.analysis_params
+                    raise ValueError
+
+                raiseFlag = False
+
+                if 'selectionParams' in params.keys():
+                    if 'Epoch' not in params['selectionParams'].keys() \
+                            or \
+                            not issubclass(type(params['selectionParams']['Epoch']), dict) \
+                            or \
+                            not (params['selectionParams']['Epoch'].keys()
+                                 & self.analysis_params['selectionParams']['Epoch'].keys()):
+                        params['selectionParams']['Epoch'] \
+                            = self.analysis_params['selectionParams']['Epoch']
+                        raiseFlag = True
+                    else:
+                        for epochKey in self.analysis_params['selectionParams']['Epoch']:
+                            if epochKey in params['selectionParams']['Epoch'].keys():
+                                if not issubclass(type(params['selectionParams']['Epoch'][epochKey]),
+                                                  tuple | set | list | None):
+                                    params['selectionParams']['Epoch'][epochKey] \
+                                        = (params['selectionParams']['Epoch'][epochKey],)
+                            else:
+                                params['selectionParams']['Epoch'][epochKey] \
+                                    = self.analysis_params['selectionParams']['Epoch'][epochKey]
+                else:
+                    params['selectionParams'] = self.analysis_params['selectionParams']
+
+                if 'smoothingParams' in params.keys():
+                    unentered_keys = self.analysis_params['smoothingParams'].keys() \
+                                     - params['smoothingParams'].keys()
+                    for key in unentered_keys:
+                        params['smoothingParams'][key] = self.analysis_params['smoothingParams'][key]
+                    if unentered_keys == self.analysis_params['smoothingParams'].keys():
+                        raiseFlag = True
+                else:
+                    params['smoothingParams'] = self.analysis_params['smoothingParams']
+
+                if 'timeWin' in params.keys():
+                    if len(params['timeWin']) == 2:
+                        params['timeWin'] = tuple(params['timeWin'])
+                    else:
+                        params['timeWin'] = self.analysis_params['timeWin']
+                        raiseFlag = True
+                else:
+                    params['timeWin'] = self.analysis_params['timeWin']
+
+                if 'trigger' in params.keys():
+                    # TODO: random trigger implementation
+                    pass
+                else:
+                    params['trigger'] = self.analysis_params['trigger']
+
+                if 'baselinetimeWin' in params.keys():
+                    pass
+                else:
+                    params['baselinetimeWin'] = self.analysis_params['baselinetimeWin']
+
+                if raiseFlag:
+                    raise ValueError
+
+            except ValueError:
+                print(f'psfr_params does not adhere to correct format, '
+                      f'using instead default/previous params...')
+
+            print('psfr_params set to: ', params)
+            self.analysis_params = params
+            obj.psfr = list(), list(), list(), list()
+
+    def __get__(self, obj, objType):
+        return self.analysis_params
+
+
+class PSFR(object):
+    """
+    Compute peri-stimulus firing rate, cache it, and append when demanded
+    """
 
     def __init__(self):
         self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T \
             = list(), list(), list(), list()
 
-    def __set__(self, obj, psfr_params):
+    def __set__(self, obj, *args):
         self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T \
-            = list(), list(), list(), list()
+            = args[0][0], args[0][1], args[0][2], args[0][3]
 
-        default_params = type(obj).psfr_default_params
-        if not hasattr(obj, '_psfr_params'):
-            obj._psfr_params = default_params
-
-        try:
-            if not isinstance(psfr_params, dict):
-                psfr_params = obj._psfr_params
-                raise ValueError
-
-            raiseFlag = False
-            if 'smoothingParams' in psfr_params.keys():
-                unentered_keys = default_params['smoothingParams'].keys() \
-                                 - psfr_params['smoothingParams'].keys()
-                for key in unentered_keys:
-                    psfr_params['smoothingParams'][key] = obj._psfr_params['smoothingParams'][key]
-                if unentered_keys == default_params['smoothingParams'].keys():
-                    raiseFlag = True
-            else:
-                psfr_params['smoothingParams'] = obj._psfr_params['smoothingParams']
-
-            if 'selectionParams' in psfr_params.keys():
-                if 'Epoch' not in psfr_params['selectionParams'].keys() \
-                        or \
-                        not issubclass(type(psfr_params['selectionParams']['Epoch']), dict) \
-                        or \
-                        not (psfr_params['selectionParams']['Epoch'].keys()
-                             & default_params['selectionParams']['Epoch'].keys()):
-                    psfr_params['selectionParams']['Epoch'] \
-                        = obj._psfr_params['selectionParams']['Epoch']
-                    raiseFlag = True
-                else:
-                    for epochKey in default_params['selectionParams']['Epoch']:
-                        if epochKey in psfr_params['selectionParams']['Epoch'].keys():
-                            if not issubclass(type(psfr_params['selectionParams']['Epoch'][epochKey]),
-                                              tuple | set | list | None):
-                                psfr_params['selectionParams']['Epoch'][epochKey] \
-                                    = (psfr_params['selectionParams']['Epoch'][epochKey],)
-                        else:
-                            psfr_params['selectionParams']['Epoch'][epochKey] \
-                                = obj._psfr_params['selectionParams']['Epoch'][epochKey]
-            else:
-                psfr_params['selectionParams'] = obj._psfr_params['selectionParams']
-
-            if 'timeWin' in psfr_params.keys():
-                if len(psfr_params['timeWin']) == 2:
-                    psfr_params['timeWin'] = tuple(psfr_params['timeWin'])
-                else:
-                    psfr_params['timeWin'] = obj._psfr_params['timeWin']
-                    raiseFlag = True
-            else:
-                psfr_params['timeWin'] = obj._psfr_params['timeWin']
-
-            if 'trigger' in psfr_params.keys():
-                # TODO: random trigger implementation
-                pass
-            else:
-                psfr_params['trigger'] = obj._psfr_params['trigger']
-
-            if 'baselinetimeWin' in psfr_params.keys():
-                pass
-            else:
-                psfr_params['baselinetimeWin'] = obj._psfr_params['baselinetimeWin']
-
-            if raiseFlag:
-                raise ValueError
-
-        except ValueError:
-            print(f'psfr_params does not adhere to correct format, '
-                  f'using instead default params...')
-
-        print('psfr_params set to: ', psfr_params)
-        obj._psfr_params = psfr_params
-
-    def __get__(self, obj, objtype):
+    def __get__(self, obj, objType):
         # obj.matdata[0][obj.matdata[0]['CombiMCD_fnames'].flatten()[0]].tobytes().decode('utf-16')
         # pd.set_option('display.expand_frame_repr', False)
 
@@ -102,11 +118,11 @@ class PSFR(object):
             return self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T
 
         uniqueEpochs = obj.epochinfo.index.unique().to_frame(index=False)
-        selectEpochs = self._filterEpochs(uniqueEpochs, obj._psfr_params['selectionParams']['Epoch'])
+        selectEpochs = self._filterEpochs(uniqueEpochs, obj.analysis_params['selectionParams']['Epoch'])
 
         for i, epoch in selectEpochs.items():
 
-            if 'TMS' in obj._psfr_params['trigger'].keys():
+            if 'TMS' in obj.analysis_params['trigger'].keys():
                 trigger = self._read_trigger(obj.matdata[i])
             else:
                 ...
@@ -124,9 +140,9 @@ class PSFR(object):
             idx = thisEpoch_df['MSO '] == thisEpoch_df['MSO ']
 
             # change the truth values of Index by doing floating point comparison
-            selectCols = obj._psfr_params['selectionParams'].keys() & self.cols_with_floats
+            selectCols = obj.analysis_params['selectionParams'].keys() & COLS_WITH_FLOATS
             for col in selectCols:
-                string = obj._psfr_params['selectionParams'][col]
+                string = obj.analysis_params['selectionParams'][col]
                 if re.match('<=', string):
                     val = re.sub('<=', '', string)
                     idx &= thisEpoch_df[col] <= np.float_(val)
@@ -144,9 +160,9 @@ class PSFR(object):
                     idx &= thisEpoch_df[col] == np.float_(val)
 
             # change the truth values of Index by doing string comparison
-            selectCols = obj._psfr_params['selectionParams'].keys() & self.cols_with_strings
+            selectCols = obj.analysis_params['selectionParams'].keys() & COLS_WITH_STRINGS
             for col in selectCols:
-                string = obj._psfr_params['selectionParams'][col]
+                string = obj.analysis_params['selectionParams'][col]
                 idx &= thisEpoch_df[col].str.contains(string)
 
             # select trigger by using the Index
@@ -157,14 +173,14 @@ class PSFR(object):
 
             # using selected trigger compute peristimulus FiringRate
             if selectTrigger.size != 0:
-                timeIntervals = self._compute_timeIntervals(selectTrigger, *obj._psfr_params['timeWin'])
+                timeIntervals = self._compute_timeIntervals(selectTrigger, *obj.analysis_params['timeWin'])
 
                 tmp_ps_FR, self._ps_T = peristim_firingrate(
-                    singleUnitsSpikeTimes, timeIntervals, obj._psfr_params['smoothingParams'])
+                    singleUnitsSpikeTimes, timeIntervals, obj.analysis_params['smoothingParams'])
                 self._ps_FR.append(tmp_ps_FR)
 
                 timeIntervals_baseline, baselineWinWidth \
-                    = self._compute_timeIntervals_baseline(selectTrigger, *obj._psfr_params['baselinetimeWin'])
+                    = self._compute_timeIntervals_baseline(selectTrigger, *obj.analysis_params['baselinetimeWin'])
 
                 tmp_ps_FR, self._ps_baseline_T = peristim_firingrate(
                     singleUnitsSpikeTimes, timeIntervals_baseline,
@@ -253,4 +269,3 @@ class SpikeTimes(Iterator):
 
     def __set__(self, obj, value):
         ...
-
