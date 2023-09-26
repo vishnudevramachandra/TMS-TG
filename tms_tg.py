@@ -62,22 +62,39 @@ class TMSTG(object):
         self.epochinfo: Optional[pd.DataFrame] = epochinfo
 
     @classmethod
-    def load(cls, matlabfnames: 'pd.Series[str]', infofile: Optional[str] = None) -> 'TMSTG':
+    def load(cls, path: str) -> 'TMSTG':
         """
         create a TMSTG object using a list of singleLocation files and an infofile
         """
 
-        if infofile is not None:
-            epochinfo = pd.read_excel(infofile).dropna()
-            epochinfo = cls.do_multi_indexing(epochinfo)
-            cls._sort_filelist(matlabfnames, epochinfo)
-        else:
-            epochinfo = None
+        groupinfofilePath = [path + '\\' + f for f in os.listdir(path) if f.endswith('.xlsx')]
 
-        return cls([mp.MATfile(fname).read() for fname in matlabfnames], epochinfo)
+        if len(groupinfofilePath) > 0:
+
+            groupinfo = pd.read_excel(groupinfofilePath[0]).dropna()
+            groupMatlabfnames: 'pd.Series[str]' = pd.Series()
+            groupEpochinfo: 'pd.DataFrame' = pd.DataFrame()
+
+            for i in groupinfo.index:
+                animalInfofilePath = [groupinfo.loc[i, 'Folder'] + '\\' + f
+                                      for f in os.listdir(groupinfo.loc[i, 'Folder']) if f.endswith('.xlsx')]
+                animalMatlabfnames = pd.Series(groupinfo.loc[i, 'Folder'] + '\\' + f
+                                               for f in os.listdir(groupinfo.loc[i, 'Folder']) if f.endswith('.mat'))
+                if len(animalInfofilePath) > 1:
+                    epochinfo = pd.read_excel(animalInfofilePath[0]).dropna()
+                    epochinfo = cls.do_multi_indexing(epochinfo, ('Animal', groupinfo.loc[i, 'Animal']))
+                    cls._sort_filelist(animalMatlabfnames, epochinfo)
+                    groupMatlabfnames = pd.concat([groupMatlabfnames, animalMatlabfnames], ignore_index=True)
+                    groupEpochinfo = pd.concat([groupEpochinfo, epochinfo])
+
+            return cls([mp.MATfile(fname).read() for fname in groupMatlabfnames], groupEpochinfo)
+
+        else:
+
+            return cls()
 
     @staticmethod
-    def do_multi_indexing(epochinfo: pd.DataFrame) -> pd.DataFrame:
+    def do_multi_indexing(epochinfo: pd.DataFrame, *extraIndex) -> pd.DataFrame:
         """
         sorts the order of matlabf<ile>names in the list to be consistent with epoch order
         """
@@ -101,7 +118,10 @@ class TMSTG(object):
         df.loc[df['Filename'].str.contains('con'), EPOCHISOLATORS[3]] = 'contra'
         df.loc[df['Filename'].str.contains('ips'), EPOCHISOLATORS[3]] = 'ipsi'
 
-        df.set_index(EPOCHISOLATORS, inplace=True)
+        df[[item[0] for item in extraIndex]] = [str(item[1]) for item in extraIndex]
+
+        df.set_index([item[0] for item in extraIndex] + EPOCHISOLATORS, inplace=True)
+        df.sort_index(inplace=True)
         return df
 
     def avg_FR_per_neuron(self, squeezeDim=True):
@@ -162,7 +182,10 @@ class TMSTG(object):
 
 
 if __name__ == '__main__':
-    # tms = TMSTG.load(['G:/Vishnu/Analysis/tms-tg/data/SLAnalys.mat'])
+
+    animalListFolder = r'G:\Vishnu\data\TMSTG'
+    tms = TMSTG.load(animalListFolder)
+
     dir_path = r'G:\Vishnu\data\TMSTG\20180922'
     matlabfiles = pd.Series(dir_path + '\\' + f for f in os.listdir(dir_path) if f.endswith('.mat'))
     infofile = [dir_path + '\\' + f for f in os.listdir(dir_path) if f.endswith('.xlsx')]
