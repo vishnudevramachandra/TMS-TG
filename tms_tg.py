@@ -56,25 +56,42 @@ class TMSTG(object):
     # TODO: LateComponent implementation
     late_comp = th.LateComponent()
 
-    def __init__(self, matdata=None, epochinfo=None) -> None:
+    def __init__(self,
+                 tree: Optional[mp.MATdata] = None,
+                 epochinfo: Optional[pd.DataFrame] = None) -> None:
 
-        self.matdata: list[mp.MATdata] = matdata if matdata is not None else list()
-        self.epochinfo: Optional[pd.DataFrame] = epochinfo
+        self.tree = tree
+        self.epochinfo = epochinfo
 
     @classmethod
-    def load(cls, matlabfnames: 'pd.Series[str]', infofile: Optional[str] = None) -> 'TMSTG':
+    def load(cls, path: Optional[str] = None) -> 'TMSTG':
         """
         create a TMSTG object using a list of singleLocation files and an infofile
         """
 
-        if infofile is not None:
-            epochinfo = pd.read_excel(infofile).dropna()
-            epochinfo = cls.do_multi_indexing(epochinfo)
-            cls._sort_filelist(matlabfnames, epochinfo)
+        if path is not None:
+            infofile = [path + '\\' + f for f in os.listdir(path) if f.endswith('.xlsx')]
+            infofile = pd.read_excel(infofile[0]).dropna()
+            if any(infofile.columns.isin(['Animal'])):
+                tree = [for animal in infofile.index]
+                return cls(
+                    [cls.load(infofile.loc[i, 'Folder']) for i in infofile.index],
+                    infofile['Animal'])
+            else:
+                cls.make_tree_lowestlevel(path_infofile)
+                infofile = cls.do_multi_indexing(infofile)
+                infofileIndexSorted = infofile.sort_index()
+                matlabfiles = pd.Series(path + '\\' + f for f in os.listdir(path) if f.endswith('.mat'))
+                cls._sort_filelist(matlabfiles, infofileIndexSorted)
+                # return cls(
+                #     [cls(f, infofile.loc[i]) for i, f in zip(infofile.index.unique(), matlabfiles)],
+                #     infofile.index.unique())
         else:
-            epochinfo = None
+            return cls()
 
-        return cls([mp.MATfile(fname).read() for fname in matlabfnames], epochinfo)
+    @classmethod
+    def make_tree(cls, path, infofile):
+        ...
 
     @staticmethod
     def do_multi_indexing(epochinfo: pd.DataFrame) -> pd.DataFrame:
@@ -163,6 +180,9 @@ class TMSTG(object):
 
 if __name__ == '__main__':
     # tms = TMSTG.load(['G:/Vishnu/Analysis/tms-tg/data/SLAnalys.mat'])
+    animalListFolder = r'G:\Vishnu\data\TMSTG'
+    tms = TMSTG.load(animalListFolder)
+
     dir_path = r'G:\Vishnu\data\TMSTG\20180922'
     matlabfiles = pd.Series(dir_path + '\\' + f for f in os.listdir(dir_path) if f.endswith('.mat'))
     infofile = [dir_path + '\\' + f for f in os.listdir(dir_path) if f.endswith('.xlsx')]
