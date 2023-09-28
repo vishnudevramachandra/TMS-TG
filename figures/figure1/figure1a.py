@@ -15,6 +15,7 @@ def plot(raster=None, psfr=None, colNames=None):
         pass
     elif raster is not None and psfr is None:
         for i in len(raster):
+            1
 
     elif psfr is not None and raster is None:
         ...

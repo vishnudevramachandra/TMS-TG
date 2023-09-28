@@ -5,10 +5,9 @@ import numba as nb
 from lib.math_fcns import gaussian, rectangular
 
 
-# TODO: caching
 def peristim_firingrate_decorator(fcn):
     def wrapper(spikeTimes: list[np.ndarray],
-                timeIntervals: list[tuple[float, float]],
+                timeIntervals: np.ndarray,
                 smoothingParams):
         assert spikeTimes is not None and timeIntervals is not None, 'Both spikeTimes and timeInterval cannot be None'
 
@@ -25,10 +24,10 @@ def peristim_firingrate_decorator(fcn):
                     return sum(rectangular(x, width=smWidth)) / (smWidth * 1e-3)
 
         step = smoothingParams['width'] * (1 - smoothingParams['overlap'])
-        ps_T = np.arange(0, timeIntervals[0][1] - timeIntervals[0][0], step)
-        ps_FR = np.zeros((len(timeIntervals), len(ps_T), len(spikeTimes)), dtype=np.float_)
+        ps_T = np.arange(0, timeIntervals[0, 1] - timeIntervals[0, 0], step)
+        ps_FR = np.zeros((timeIntervals.shape[0], len(ps_T), len(spikeTimes)), dtype=np.float_)
 
-        nb.set_num_threads(max(1, int(nb.config.NUMBA_NUM_THREADS // 1.333)))
+        nb.set_num_threads(max(1, int(nb.config.NUMBA_NUM_THREADS // 1.25)))
         ps_FR, ps_T = fcn(ps_FR, ps_T, spikeTimes, timeIntervals, f)
         nb.set_num_threads(nb.config.NUMBA_DEFAULT_NUM_THREADS)
         return ps_FR, ps_T
@@ -43,7 +42,7 @@ def peristim_firingrate(
     for trl_n in nb.prange(len(timeIntervals)):
         # loop over time steps
         for step_n, step in enumerate(ps_T):
-            step += timeIntervals[trl_n][0]
+            step += timeIntervals[trl_n, 0]
             # loop over neurons (use timestamps of each neuron to assign firing rate)
             for i, singleUnitSpikeTimes in enumerate(spikeTimes):
                 # insert the firing rate for each neuron, for each time step, for each trial
@@ -53,7 +52,7 @@ def peristim_firingrate(
 
 def peristim_timestamp(
         spikeTimes: list[np.ndarray],
-        timeIntervals: list[tuple[float, float]]) -> list[list[np.ndarray]]:
+        timeIntervals: np.ndarray) -> list[list[np.ndarray]]:
     assert spikeTimes is not None and timeIntervals is not None, 'Both spikeTimes and timeInterval cannot be None'
 
     ps_TS = []
@@ -76,11 +75,10 @@ if __name__ == '__main__':
 
     trigChanIdx = data['TrigChan_ind'][0, 0].astype(int) - 1
     refs = data['rawData/trigger'].flatten()
-    trigger = [data[i].flatten() for i in refs][trigChanIdx] * 1e3
+    trigger = data[refs[trigChanIdx]].flatten()[::2] * 1e3
 
     startT, endT = -20, 100
-    timeIntervals = nb.typed.List()
-    [timeIntervals.append((x + startT, x + endT)) for x in trigger[::2]]
+    timeIntervals = trigger[:, np.newaxis] + np.array([startT, endT])
 
     multiUnitSpikeTimes = data['SpikeModel/SpikeTimes/data'].flatten()
     refs = data['SpikeModel/ClusterAssignment/data'].flatten()
