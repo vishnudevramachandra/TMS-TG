@@ -62,7 +62,7 @@ class TMSTG(object):
 
     analysis_params = th.AnalysisParams(_default_analysis_params)
     psfr = th.PSFR()
-    # psts = th.Raster()
+    psts = th.Raster()
 
     # TODO: LateComponent implementation
     late_comp = th.LateComponent()
@@ -170,7 +170,7 @@ class TMSTG(object):
         df.loc[df['Filename'].str.contains('con'), EPOCHISOLATORS[4]] = 'contra'
         df.loc[df['Filename'].str.contains('ips'), EPOCHISOLATORS[4]] = 'ipsi'
 
-        df.fillna('missing', inplace=True)
+        df.fillna('none', inplace=True)
         df.set_index(EPOCHISOLATORS, inplace=True)
         df.sort_index(inplace=True)
         return df
@@ -253,7 +253,7 @@ class TMSTG(object):
         pass
 
     @cached_property
-    def _filter_blocks(self) -> tuple[pd.DataFrame, pd.Series]:
+    def filter_blocks(self) -> tuple[pd.DataFrame, pd.Series]:
         """
         Filters the epoch MultiIndex-ed DataFrame using 'selectionParams' stored in self.analysis_params
 
@@ -333,7 +333,7 @@ class TMSTG(object):
                         ampTrigger = np.delete(ampTrigger, i * 2 + np.array([1, 2]))
                         ampTrigger = ampTrigger.reshape(ampTrigger.size // 2, 2)
                     i += 1
-                assert len(ampTrigger) != len(trigger), \
+                assert ampTrigger.size == len(trigger), \
                     f'for epoch {epochIndex} length of ampTrigger and tmsTrigger are not the same'
 
             timeIntervals = ampTrigger.reshape((ampTrigger.size // 2, 2)) \
@@ -366,6 +366,9 @@ if __name__ == '__main__':
     th._check_trigger_numbers(tms.matdata, tms.epochinfo)
     th._check_mso_order(tms.matdata, tms.epochinfo)
 
-    tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'MC'}, 'MT': '>=1'}}
+    tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'MC',
+                                                         'Layer': 'L23'},
+                                               'MT': '>1'}}
+    ps_TS = tms.psts
     ps_FR, ps_T, ps_baselineFR, _ = tms.psfr
     tms.psfr

@@ -1,7 +1,7 @@
 import numpy as np
 import numba as nb
 import re
-from lib.dataanalysis import peristim_firingrate
+from lib.dataanalysis import peristim_firingrate, peristim_timestamp
 from collections.abc import Iterator
 from functools import lru_cache
 
@@ -40,7 +40,7 @@ class AnalysisParams(object):
                         for epochKey in self.analysis_params['selectionParams']['Epoch']:
                             if epochKey in params['selectionParams']['Epoch'].keys():
                                 if not issubclass(type(params['selectionParams']['Epoch'][epochKey]),
-                                                  tuple | set | list | None):
+                                                  tuple | set | list | np.ndarray | None):
                                     params['selectionParams']['Epoch'][epochKey] \
                                         = (params['selectionParams']['Epoch'][epochKey],)
                             else:
@@ -98,7 +98,7 @@ class AnalysisParams(object):
 
                 if 'lateComponentParams' in params.keys():
                     unentered_keys = self.analysis_params['lateComponentParams'].keys() \
-                                         - params['lateComponentParams'].keys()
+                                     - params['lateComponentParams'].keys()
                     for key in unentered_keys:
                         params['lateComponentParams'][key] = self.analysis_params['lateComponentParams'][key]
                     if unentered_keys == self.analysis_params['lateComponentParams'].keys():
@@ -116,9 +116,10 @@ class AnalysisParams(object):
             print('psfr_params set to: ', params)
             self.analysis_params = params
             obj.psfr = list(), list(), list(), list()
-            if hasattr(obj, '_filter_blocks'):
-                del obj._filter_blocks
-            _, _ = obj._filter_blocks
+            obj.Raster = list()
+            if hasattr(obj, 'filter_blocks'):
+                del obj.filter_blocks
+            _, _ = obj.filter_blocks
 
     def __get__(self, obj, objType):
         return self.analysis_params
@@ -138,38 +139,28 @@ class PSFR(object):
             = args[0][0], args[0][1], args[0][2], args[0][3]
 
     def __get__(self, obj, objType) -> tuple[list, list, list, list]:
-        # obj.matdata[0][obj.matdata[0]['CombiMCD_fnames'].flatten()[0]].tobytes().decode('utf-16')
-        # pd.set_option('display.expand_frame_repr', False)
 
         if len(self._ps_FR) != 0:
             return self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T
 
-        if True:
-            _check_trigger_numbers(obj.matdata, obj.epochinfo)
-            _check_mso_order(obj.matdata, obj.epochinfo)
-
-        selectBlocks, blockIdx = obj._filter_blocks
+        _check_trigger_numbers(obj.matdata, obj.epochinfo)
+        _check_mso_order(obj.matdata, obj.epochinfo)
+        selectBlocks, blockIdx = obj.filter_blocks
 
         for epochIndex, blockinfo in selectBlocks.iterrows():
-            if 'TMS' in obj.analysis_params['peristimParams']['trigger'].keys():
-                trigger = _read_trigger(obj.matdata[epochIndex])
-            else:
-                ...
-            # TODO: random trigger implementation
+            selectTrigger = _get_trigger_values_for_current_block(
+                obj.analysis_params['peristimParams']['trigger'], obj.matdata[epochIndex], blockinfo)
 
-            # select trigger using 'TrigStartIdx' in epochinfo
-            selectTrigger = trigger[blockinfo['TrigStartIdx'] + np.array(range(blockinfo['no. of Trigs']))]
-
-            timeIntervals = _compute_timeIntervals(selectTrigger, *obj.analysis_params['peristimParams']['timeWin'])
+            timeIntervals = _compute_timeIntervals(
+                selectTrigger, *obj.analysis_params['peristimParams']['timeWin'])
             tmp_ps_FR, self._ps_T \
                 = peristim_firingrate(obj.singleUnitsSpikeTimes(epochIndex),
                                       timeIntervals,
                                       obj.analysis_params['peristimParams']['smoothingParams'])
             self._ps_FR.append(tmp_ps_FR)
 
-            timeIntervals_baseline, baselineWinWidth \
-                = _compute_timeIntervals_baseline(selectTrigger, *obj.analysis_params['peristimParams']['baselinetimeWin'])
-
+            timeIntervals_baseline, baselineWinWidth = _compute_timeIntervals_baseline(
+                selectTrigger, *obj.analysis_params['peristimParams']['baselinetimeWin'])
             tmp_ps_FR, self._ps_baseline_T \
                 = peristim_firingrate(obj.singleUnitsSpikeTimes(epochIndex),
                                       timeIntervals_baseline,
@@ -177,6 +168,41 @@ class PSFR(object):
             self._ps_baseline_FR.append(tmp_ps_FR)
 
         return self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T
+
+
+class Raster(object):
+    def __init__(self):
+        self._ps_TS = list()
+
+    def __set__(self, obj, value):
+        self._ps_TS = value
+
+    def __get__(self, obj, objType) -> list:
+
+        if len(self._ps_TS) != 0:
+            return self._ps_TS
+
+        _check_trigger_numbers(obj.matdata, obj.epochinfo)
+        _check_mso_order(obj.matdata, obj.epochinfo)
+        selectBlocks, blockIdx = obj.filter_blocks
+
+        for epochIndex, blockinfo in selectBlocks.iterrows():
+            selectTrigger = _get_trigger_values_for_current_block(
+                obj.analysis_params['peristimParams']['trigger'], obj.matdata[epochIndex], blockinfo)
+            timeIntervals = _compute_timeIntervals(
+                selectTrigger, *obj.analysis_params['peristimParams']['timeWin'])
+            tmp_ps_TS = peristim_timestamp(obj.singleUnitsSpikeTimes(epochIndex), timeIntervals)
+            self._ps_TS.append(tmp_ps_TS)
+
+        return self._ps_TS
+
+
+def _get_trigger_values_for_current_block(trigParams, matdatum, blockinfo):
+    if 'TMS' in trigParams.keys():
+        trigger = _read_trigger(matdatum)
+        return trigger[blockinfo['TrigStartIdx'] + np.array(range(blockinfo['no. of Trigs']))]
+    else:
+        ...  # TODO: random trigger implementation
 
 
 def _compute_timeIntervals(trigger, startT, endT):

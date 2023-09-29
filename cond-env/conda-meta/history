@@ -47,3 +47,10 @@
 +defaults/win-64::icc_rt-2022.1.0-h6049295_2
 +defaults/win-64::scipy-1.11.1-py310h309d312_0
 # update specs: ['scipy']
+==> 2023-09-29 13:56:11 <==
+# cmd: C:\ProgramData\Anaconda3\Scripts\conda-script.py install -p G:/Vishnu/Analysis/tms-tg/cond-env cachetools -y
+# conda version: 4.12.0
+-defaults/win-64::openssl-3.0.10-h2bbff1b_2
++defaults/noarch::cachetools-4.2.2-pyhd3eb1b0_0
++defaults/win-64::openssl-3.0.11-h2bbff1b_2
+# update specs: ['cachetools']
