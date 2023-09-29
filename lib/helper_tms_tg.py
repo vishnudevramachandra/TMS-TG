@@ -1,5 +1,5 @@
 import numpy as np
-import numba as nb
+import pandas as pd
 import re
 from lib.dataanalysis import peristim_firingrate, peristim_timestamp
 from collections.abc import Iterator
@@ -115,10 +115,11 @@ class AnalysisParams(object):
 
             print('psfr_params set to: ', params)
             self.analysis_params = params
+
+            # do housekeeping
             obj.psfr = list(), list(), list(), list()
             obj.Raster = list()
-            if hasattr(obj, 'filter_blocks'):
-                del obj.filter_blocks
+            obj.filter_blocks = None
             _, _ = obj.filter_blocks
 
     def __get__(self, obj, objType):
@@ -127,7 +128,7 @@ class AnalysisParams(object):
 
 class PSFR(object):
     """
-    Compute peri-stimulus firing rate, cache it, and append when demanded
+    Compute peri-stimulus firing rate and cache it when demanded
     """
 
     def __init__(self):
@@ -143,12 +144,12 @@ class PSFR(object):
         if len(self._ps_FR) != 0:
             return self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T
 
-        _check_trigger_numbers(obj.matdata, obj.epochinfo)
-        _check_mso_order(obj.matdata, obj.epochinfo)
-        selectBlocks, blockIdx = obj.filter_blocks
+        _check_trigger_numbers(obj.matdata, obj.blocksinfo)
+        _check_mso_order(obj.matdata, obj.blocksinfo)
+        selectBlocks, selectBlocksIdx = obj.filter_blocks
 
         for epochIndex, blockinfo in selectBlocks.iterrows():
-            selectTrigger = _get_trigger_values_for_current_block(
+            selectTrigger = _get_trigger_times_for_current_block(
                 obj.analysis_params['peristimParams']['trigger'], obj.matdata[epochIndex], blockinfo)
 
             timeIntervals = _compute_timeIntervals(
@@ -171,6 +172,10 @@ class PSFR(object):
 
 
 class Raster(object):
+    """
+    Compute peri-stimulus spike time-stamps and cache it when demanded
+    """
+
     def __init__(self):
         self._ps_TS = list()
 
@@ -182,12 +187,12 @@ class Raster(object):
         if len(self._ps_TS) != 0:
             return self._ps_TS
 
-        _check_trigger_numbers(obj.matdata, obj.epochinfo)
-        _check_mso_order(obj.matdata, obj.epochinfo)
-        selectBlocks, blockIdx = obj.filter_blocks
+        _check_trigger_numbers(obj.matdata, obj.blocksinfo)
+        _check_mso_order(obj.matdata, obj.blocksinfo)
+        selectBlocks, selectBlocksIdx = obj.filter_blocks
 
         for epochIndex, blockinfo in selectBlocks.iterrows():
-            selectTrigger = _get_trigger_values_for_current_block(
+            selectTrigger = _get_trigger_times_for_current_block(
                 obj.analysis_params['peristimParams']['trigger'], obj.matdata[epochIndex], blockinfo)
             timeIntervals = _compute_timeIntervals(
                 selectTrigger, *obj.analysis_params['peristimParams']['timeWin'])
@@ -197,7 +202,7 @@ class Raster(object):
         return self._ps_TS
 
 
-def _get_trigger_values_for_current_block(trigParams, matdatum, blockinfo):
+def _get_trigger_times_for_current_block(trigParams, matdatum, blockinfo):
     if 'TMS' in trigParams.keys():
         trigger = _read_trigger(matdatum)
         return trigger[blockinfo['TrigStartIdx'] + np.array(range(blockinfo['no. of Trigs']))]
@@ -221,11 +226,11 @@ def _read_trigger(matdatum):
     return matdatum[refs[trigChanIdx]].flatten()[::2] * 1e3
 
 
-def _check_trigger_numbers(matdata, epochinfo):
-    epochIndices = epochinfo.index.unique().to_numpy()
+def _check_trigger_numbers(matdata, blocksinfo):
+    epochIndices = blocksinfo.index.unique().to_numpy()
     for epochIndex in epochIndices:
         trigger = _read_trigger(matdata[epochIndex])
-        assert epochinfo.loc[epochIndex, 'no. of Trigs'].sum() == len(trigger), \
+        assert blocksinfo.loc[epochIndex, 'no. of Trigs'].sum() == len(trigger), \
             f'no. of triggers in epoch {epochIndex} does not match with mat-data'
         # matdata[epochIndex][matdata[epochIndex]['CombiMCD_fnames'].flatten()[0]].tobytes().decode('utf-16')
 
@@ -238,12 +243,12 @@ def _read_MSO(matdatum):
         [int(re.findall(r'\d+', item)[0]) if re.findall(r'\d+', item) else 0 for item in mso])
 
 
-def _check_mso_order(matdata, epochinfo):
-    epochIndices = epochinfo.index.unique().to_numpy()
+def _check_mso_order(matdata, blocksinfo):
+    epochIndices = blocksinfo.index.unique().to_numpy()
     for epochIndex in epochIndices:
         mso = _read_MSO(matdata[epochIndex])
-        nonZeroMSOindices = epochinfo.loc[epochIndex, 'MSO '].to_numpy() != 0
-        assert all(epochinfo.loc[epochIndex, 'MSO '][nonZeroMSOindices]
+        nonZeroMSOindices = blocksinfo.loc[epochIndex, 'MSO '].to_numpy() != 0
+        assert all(blocksinfo.loc[epochIndex, 'MSO '][nonZeroMSOindices]
                    == mso[nonZeroMSOindices]), \
             f'mso order in epoch {epochIndex} differs from mat-data'
 
