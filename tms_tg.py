@@ -26,6 +26,81 @@ COLS_WITH_FLOATS = {'MSO ', 'MT', 'no. of Trigs', 'Stimpulses', 'Depth_int'}
 COLS_WITH_STRINGS = {'StimHem', 'CoilDir', 'TG-Injection ', 'RecArea ', 'RecHem', 'Filename'}
 
 
+def _filter_blocks_helper(
+        blocksinfo, analysis_params, boolIndex=None) -> tuple[pd.DataFrame, pd.Series]:
+    """
+    Filters MultiIndex-ed blocksinfo<DataFrame> using 'selectionParams' in analysis_params
+
+    Parameters
+    ----------
+    blocksinfo:          MultiIndex-ed DataFrame containing block information.
+    analysis_params:    Dict with parameters for filtering blocksinfo
+    boolIndex:          [Optional] MultiIndex-ed Series of boolean array
+
+    Returns
+    -------
+    Filtered MultiIndex-ed DataFrame, MultiIndex-ed Series of boolean array (True values match filtered indices)
+
+    """
+    # initialize boolArray[True] for selecting (booleanIndexing) blocks using criterion in ['selectionParams']
+    if boolIndex is None:
+        boolIndex = blocksinfo['MSO '] == blocksinfo['MSO ']
+
+    # change the truth values of Index by doing string comparison on dataframe.Index
+    epochIndices = blocksinfo.index.to_frame()
+    for item in EPOCHISOLATORS:
+        if (strings := analysis_params['selectionParams']['Epoch'][item]) is not None:
+            boolIndex &= epochIndices[item].str.contains('|'.join(strings))
+
+    # change the truth values of Index by doing floating point comparison on dataframe columns
+    selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_FLOATS
+    for col in selectCols:
+        string = analysis_params['selectionParams'][col]
+        if re.match('<=', string):
+            val = re.sub('<=', '', string)
+            boolIndex &= blocksinfo[col] <= np.float_(val)
+        elif re.match('<', string):
+            val = re.sub('<', '', string)
+            boolIndex &= blocksinfo[col] <= np.float_(val)
+        elif re.match('>=', string):
+            val = re.sub('>=', '', string)
+            boolIndex &= blocksinfo[col] >= np.float_(val)
+        elif re.match('>', string):
+            val = re.sub('>', '', string)
+            boolIndex &= blocksinfo[col] > np.float_(val)
+        elif re.match('==', string):
+            val = re.sub('==', '', string)
+            boolIndex &= blocksinfo[col] == np.float_(val)
+
+    # change the truth values of Index by doing string comparison on dataframe columns
+    selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_STRINGS
+    for col in selectCols:
+        string = analysis_params['selectionParams'][col]
+        boolIndex &= blocksinfo[col].str.contains(string)
+
+    return blocksinfo.loc[boolIndex, :], boolIndex
+
+
+class FilterBlocks(object):
+    """
+    Compute filtered blocksinfo using analysis parameters and cache it
+    """
+
+    def __init__(self):
+        self.cache = None
+
+    def __get__(self, obj, objType):
+        if self.cache is None:
+            self.cache = _filter_blocks_helper(obj.blocksinfo, obj.analysis_params, boolIndex=None)
+        return self.cache[0], self.cache[1]
+
+    def __set__(self, obj, value):
+        self.cache = value
+
+    def __call__(self, blocksinfo, analysis_params, boolIndex=None):
+        return _filter_blocks_helper(blocksinfo, analysis_params, boolIndex)
+
+
 class TMSTG(object):
     """TMSTG
 
@@ -34,7 +109,7 @@ class TMSTG(object):
     Parameters
     ----------
     matdata: {List} of MATdata objects that provide access to data on disk
-    epochinfo: {DataFrame} of read 'infofile'
+    blocksinfo: {DataFrame} of read 'infofile'
 
     Note:   Do not instantiate this class directly. Instead, use...
             TMSTG.load(matlabfnames, ).
@@ -63,13 +138,14 @@ class TMSTG(object):
     analysis_params = th.AnalysisParams(_default_analysis_params)
     psfr = th.PSFR()
     psts = th.Raster()
+    filter_blocks = FilterBlocks()
 
     # TODO: LateComponent implementation
     late_comp = th.LateComponent()
 
-    def __init__(self, matdata=None, epochinfo=None) -> None:
+    def __init__(self, matdata=None, blocksinfo=None) -> None:
         self.matdata: Optional['pd.Series[mp.MATdata]'] = matdata.sort_index()
-        self.epochinfo: Optional[pd.DataFrame] = epochinfo.sort_index()
+        self.blocksinfo: Optional[pd.DataFrame] = blocksinfo.sort_index()
 
     @classmethod
     def load(cls, groupinfofilePath: str) -> 'TMSTG':
@@ -87,7 +163,7 @@ class TMSTG(object):
 
         groupinfo = pd.read_excel(groupinfofilePath).dropna()
         groupMatlabfnames = pd.Series()
-        groupEpochinfo = pd.DataFrame()
+        groupBlocksinfo = pd.DataFrame()
 
         for i in groupinfo.index:
             animalInfofilePath = [groupinfo.loc[i, 'Folder'] + '\\' + f
@@ -95,61 +171,61 @@ class TMSTG(object):
             animalMatlabfnames = pd.Series(groupinfo.loc[i, 'Folder'] + '\\' + f
                                            for f in os.listdir(groupinfo.loc[i, 'Folder']) if f.endswith('.mat'))
             if len(animalInfofilePath) > 0:
-                epochinfo = pd.read_excel(animalInfofilePath[0]).drop(
+                blocksinfo = pd.read_excel(animalInfofilePath[0]).drop(
                     columns=['Unnamed: 11', 'Queries'], errors='ignore').dropna(axis=0, how='all')
-                cls._concatEpochinfo(epochinfo, 'Animal', str(groupinfo.loc[i, 'Animal']))
-                epochinfo = cls.do_multi_indexing(epochinfo)
-                cls._concatEpochinfo(epochinfo, 'TrigStartIdx')
-                cls._sort_filelist(animalMatlabfnames, epochinfo)
+                cls._concat_blocksinfo(blocksinfo, 'Animal', str(groupinfo.loc[i, 'Animal']))
+                blocksinfo = cls.do_multi_indexing(blocksinfo)
+                cls._concat_blocksinfo(blocksinfo, 'TrigStartIdx')
+                cls._sort_filelist(animalMatlabfnames, blocksinfo)
                 groupMatlabfnames = pd.concat([groupMatlabfnames, animalMatlabfnames], ignore_index=True)
-                groupEpochinfo = pd.concat([groupEpochinfo, epochinfo])
+                groupBlocksinfo = pd.concat([groupBlocksinfo, blocksinfo])
 
         return cls(
-            pd.Series([mp.MATfile(fname).read() for fname in groupMatlabfnames], index=groupEpochinfo.index.unique()),
-            groupEpochinfo)
+            pd.Series([mp.MATfile(fname).read() for fname in groupMatlabfnames], index=groupBlocksinfo.index.unique()),
+            groupBlocksinfo)
 
     @staticmethod
-    def _concatEpochinfo(epochinfo: pd.DataFrame, colName: str, value: Optional[Any] = None) -> None:
+    def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[Any] = None) -> None:
         """
         Concatenates a new column to passed in DataFrame
 
         Parameters
         ----------
-        epochinfo:  DataFrame containing epoch information. If no argument is passed to
+        blocksinfo:  DataFrame containing block information. If no argument is passed to
                     'value' parameter then the DataFrame has to be multi-indexed
         colName:    name for new column
         value:      [Optional] value that is added to all rows of DataFrame
 
         """
 
-        if colName not in epochinfo.columns:
+        if colName not in blocksinfo.columns:
 
             if value is not None:
-                epochinfo[colName] = value
+                blocksinfo[colName] = value
 
             else:
                 match colName:
                     case 'TrigStartIdx':
-                        epochinfo['TrigStartIdx'] = 0
-                        epochIndices = epochinfo.index.unique().to_numpy()
+                        blocksinfo['TrigStartIdx'] = 0
+                        epochIndices = blocksinfo.index.unique().to_numpy()
                         for epochIndex in epochIndices:
-                            num_of_trigs = epochinfo.loc[epochIndex, 'no. of Trigs'].to_numpy()
-                            epochinfo.loc[epochIndex, 'TrigStartIdx'] = np.append(0, num_of_trigs.cumsum()[:-1])
+                            num_of_trigs = blocksinfo.loc[epochIndex, 'no. of Trigs'].to_numpy()
+                            blocksinfo.loc[epochIndex, 'TrigStartIdx'] = np.append(0, num_of_trigs.cumsum()[:-1])
                     case _:
                         print(f'Not implemented : Adding column with title "{colName}" without '
                               f'a given value')
 
     @staticmethod
-    def do_multi_indexing(epochinfo: pd.DataFrame) -> pd.DataFrame:
+    def do_multi_indexing(blocksinfo: pd.DataFrame) -> pd.DataFrame:
         """
         Multi-indexes the passed in DataFrame
 
         Parameters
         ----------
-        epochinfo:  DataFrame containing epoch information.
+        blocksinfo:  MultiIndex-ed DataFrame containing block information.
 
         """
-        df = epochinfo.copy()
+        df = blocksinfo.copy()
         df.loc[:, 'Depth'] = df['Depth'].str.removesuffix('µm')
         df['Depth_int'] = np.int_(df.loc[:, 'Depth'].to_list())
         df['no. of Trigs'] = np.int_(df.loc[:, 'no. of Trigs'].to_list())
@@ -220,14 +296,14 @@ class TMSTG(object):
         return singleUnitsSpikeTimes
 
     @staticmethod
-    def _sort_filelist(matlabfnames, epochinfo) -> None:
+    def _sort_filelist(matlabfnames, blocksinfo) -> None:
         """
-        Sorts the order of matlabf<ile>names in the Series to be consistent with epoch order
+        Sorts the order of matlabf<ile>names in the Series to be consistent with epoch order in blocksinfo
 
         Parameters
         ----------
         matlabfnames:   Series of matlabf<ile>names
-        epochinfo:      MultiIndex-ed DataFrame containing epoch information
+        blocksinfo:      MultiIndex-ed DataFrame containing block information
 
         """
 
@@ -243,62 +319,14 @@ class TMSTG(object):
             else:
                 return boolArray
 
-        # Use MultiIndexes of epochinfo to set the file order
-        epochIndices = epochinfo.index.unique().to_numpy()
+        # Use MultiIndexes of blocksinfo to set the file order
+        epochIndices = blocksinfo.index.unique().to_numpy()
         for i, epochIndex in enumerate(epochIndices):
             boolIndex = lookfor_matching_fname(np.ones(len(matlabfnames), dtype=bool), *epochIndex)
             j = boolIndex.array.argmax()
             matlabfnames.iloc[[i, j]] = matlabfnames.iloc[[j, i]]
 
         pass
-
-    @cached_property
-    def filter_blocks(self) -> tuple[pd.DataFrame, pd.Series]:
-        """
-        Filters the epoch MultiIndex-ed DataFrame using 'selectionParams' stored in self.analysis_params
-
-        Returns
-        -------
-        Filtered MultiIndex-ed DataFrame, MultiIndex-ed Series of boolean array (True values match filtered indices)
-
-        """
-
-        # initialize boolArray[True] for selecting (booleanIndexing) blocks using criterion in ['selectionParams']
-        idx = self.epochinfo['MSO '] == self.epochinfo['MSO ']
-
-        # change the truth values of Index by doing string comparison on dataframe.Index
-        epochIndices = self.epochinfo.index.to_frame()
-        for item in EPOCHISOLATORS:
-            if (strings := self.analysis_params['selectionParams']['Epoch'][item]) is not None:
-                idx &= epochIndices[item].str.contains('|'.join(strings))
-
-        # change the truth values of Index by doing floating point comparison on dataframe columns
-        selectCols = self.analysis_params['selectionParams'].keys() & COLS_WITH_FLOATS
-        for col in selectCols:
-            string = self.analysis_params['selectionParams'][col]
-            if re.match('<=', string):
-                val = re.sub('<=', '', string)
-                idx &= self.epochinfo[col] <= np.float_(val)
-            elif re.match('<', string):
-                val = re.sub('<', '', string)
-                idx &= self.epochinfo[col] <= np.float_(val)
-            elif re.match('>=', string):
-                val = re.sub('>=', '', string)
-                idx &= self.epochinfo[col] >= np.float_(val)
-            elif re.match('>', string):
-                val = re.sub('>', '', string)
-                idx &= self.epochinfo[col] > np.float_(val)
-            elif re.match('==', string):
-                val = re.sub('==', '', string)
-                idx &= self.epochinfo[col] == np.float_(val)
-
-        # change the truth values of Index by doing string comparison on dataframe columns
-        selectCols = self.analysis_params['selectionParams'].keys() & COLS_WITH_STRINGS
-        for col in selectCols:
-            string = self.analysis_params['selectionParams'][col]
-            idx &= self.epochinfo[col].str.contains(string)
-
-        return self.epochinfo.loc[idx, :], idx
 
     def _remove_spikes_within_TMSArtifact_timeWin(self,
                                                   spikeTimes: np.ndarray,
@@ -310,7 +338,7 @@ class TMSTG(object):
         Parameters
         ----------
         spikeTimes:     multiUnitSpikeTimes
-        epochIndex:     index of matdata from which multiUniSpikeTimes were extracted
+        epochIndex:     index of matdata from which multiUnitSpikeTimes were extracted
 
         Returns
         -------
@@ -363,8 +391,8 @@ if __name__ == '__main__':
     # matlabfiles = pd.Series(dir_path + '\\' + f for f in os.listdir(dir_path) if f.endswith('.mat'))
     # infofile = [dir_path + '\\' + f for f in os.listdir(dir_path) if f.endswith('.xlsx')]
     # tms = TMSTG.load(matlabfiles, infofile[0])
-    th._check_trigger_numbers(tms.matdata, tms.epochinfo)
-    th._check_mso_order(tms.matdata, tms.epochinfo)
+    th._check_trigger_numbers(tms.matdata, tms.blocksinfo)
+    th._check_mso_order(tms.matdata, tms.blocksinfo)
 
     tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'MC',
                                                          'Layer': 'L23'},

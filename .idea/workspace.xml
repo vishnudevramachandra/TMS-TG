@@ -1,24 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="feat: caching of disk access">
+    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="feat: {filter_blocks} is accessible property">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/bin/c_rehash.pl" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/bin/c_rehash.pl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/bin/libcrypto-3-x64.dll" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/bin/libcrypto-3-x64.dll" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/bin/libcrypto-3-x64.pdb" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/bin/libcrypto-3-x64.pdb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/bin/libssl-3-x64.dll" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/bin/libssl-3-x64.dll" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/bin/libssl-3-x64.pdb" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/bin/libssl-3-x64.pdb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/bin/openssl.exe" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/bin/openssl.exe" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/bin/openssl.pdb" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/bin/openssl.pdb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/include/openssl/dh.h" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/include/openssl/dh.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/include/openssl/opensslv.h" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/include/openssl/opensslv.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/include/openssl/x509err.h" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/include/openssl/x509err.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/lib/libcrypto.lib" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/lib/libcrypto.lib" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/lib/libssl.lib" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/lib/libssl.lib" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/ssl/misc/CA.pl" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/ssl/misc/CA.pl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/Library/ssl/misc/tsget.pl" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/Library/ssl/misc/tsget.pl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cond-env/conda-meta/history" beforeDir="false" afterPath="$PROJECT_DIR$/cond-env/conda-meta/history" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/figures/figure1/figure1a.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure1/figure1a.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/dataanalysis.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/dataanalysis.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/helper_tms_tg.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/helper_tms_tg.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tms_tg.py" beforeDir="false" afterPath="$PROJECT_DIR$/tms_tg.py" afterDir="false" />
     </list>
@@ -43,7 +28,7 @@
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="TMSTG_as_RecursiveClass" />
+        <entry key="$PROJECT_DIR$" value="organizeAsClasses" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -77,7 +62,7 @@
       <recent name="G:\Vishnu\Analysis\tms-tg\data" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.figure1a">
+  <component name="RunManager" selected="Python.tms_tg">
     <configuration default="true" type="PythonConfigurationType" factoryName="Python">
       <module name="TMS-TG" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -219,8 +204,8 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.figure1a" />
         <item itemvalue="Python.tms_tg" />
+        <item itemvalue="Python.figure1a" />
         <item itemvalue="Python.dataanalysis" />
         <item itemvalue="Python.matpy" />
         <item itemvalue="Python.matfile" />
@@ -257,7 +242,7 @@
       <workItem from="1695056518321" duration="142054000" />
       <workItem from="1695727317453" duration="28201000" />
       <workItem from="1695757365903" duration="164000" />
-      <workItem from="1695757892199" duration="80254000" />
+      <workItem from="1695757892199" duration="96590000" />
     </task>
     <task id="LOCAL-00001" summary="feat: read matlab/hdf5 files">
       <created>1688659386984</created>
@@ -350,7 +335,14 @@
       <option name="project" value="LOCAL" />
       <updated>1695920551680</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="feat: {filter_blocks} is accessible property">
+      <created>1695995491241</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1695995491241</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -373,17 +365,22 @@
             <list>
               <RecentGroup>
                 <option name="FILTER_VALUES">
+                  <option value="origin/master" />
+                </option>
+              </RecentGroup>
+              <RecentGroup>
+                <option name="FILTER_VALUES">
+                  <option value="master" />
+                </option>
+              </RecentGroup>
+              <RecentGroup>
+                <option name="FILTER_VALUES">
                   <option value="origin/tmstg_as_RecursiveClass" />
                 </option>
               </RecentGroup>
               <RecentGroup>
                 <option name="FILTER_VALUES">
                   <option value="origin/organizeAsClasses" />
-                </option>
-              </RecentGroup>
-              <RecentGroup>
-                <option name="FILTER_VALUES">
-                  <option value="origin/master" />
                 </option>
               </RecentGroup>
             </list>
@@ -405,7 +402,8 @@
     <MESSAGE value="fix: tmstg works with group data" />
     <MESSAGE value="fix: {peristimulus} works with group data" />
     <MESSAGE value="feat: caching of disk access" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: caching of disk access" />
+    <MESSAGE value="feat: {filter_blocks} is accessible property" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: {filter_blocks} is accessible property" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -422,58 +420,48 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/lib/dataanalysis.py</url>
-          <line>92</line>
+          <line>90</line>
           <option name="timeStamp" value="71" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/lib/dataanalysis.py</url>
-          <line>88</line>
+          <line>86</line>
           <option name="timeStamp" value="77" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/lib/dataanalysis.py</url>
-          <line>95</line>
+          <line>93</line>
           <option name="timeStamp" value="82" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tms_tg.py</url>
-          <line>373</line>
+          <line>401</line>
           <option name="timeStamp" value="148" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/lib/dataanalysis.py</url>
-          <line>82</line>
+          <line>80</line>
           <option name="timeStamp" value="331" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/tms_tg.py</url>
-          <line>372</line>
-          <option name="timeStamp" value="346" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/lib/helper_tms_tg.py</url>
-          <line>153</line>
-          <option name="timeStamp" value="351" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/tms_tg.py</url>
-          <line>335</line>
-          <option name="timeStamp" value="367" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/figures/figure1/figure1a.py</url>
-          <line>58</line>
+          <line>62</line>
           <option name="timeStamp" value="368" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/figures/figure1/figure1a.py</url>
-          <line>56</line>
-          <option name="timeStamp" value="371" />
+          <url>file://$PROJECT_DIR$/tms_tg.py</url>
+          <line>393</line>
+          <option name="timeStamp" value="378" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/figures/figure1/figure1a.py</url>
-          <line>42</line>
-          <option name="timeStamp" value="372" />
+          <url>file://$PROJECT_DIR$/tms_tg.py</url>
+          <line>400</line>
+          <option name="timeStamp" value="383" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tms_tg.py</url>
+          <line>93</line>
+          <option name="timeStamp" value="384" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
@@ -483,13 +471,13 @@
     <SUITE FILE_PATH="coverage/tms_tg$dataanalysis.coverage" NAME="dataanalysis Coverage Results" MODIFIED="1695913497108" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/tms_tg$matfile.coverage" NAME="matfile Coverage Results" MODIFIED="1693994162366" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/tms_tg$tmp.coverage" NAME="tmp Coverage Results" MODIFIED="1694436195251" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
-    <SUITE FILE_PATH="coverage/tms_tg$tms_tg.coverage" NAME="tms_tg Coverage Results" MODIFIED="1695976436458" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/tms_tg$tms_tg.coverage" NAME="tms_tg Coverage Results" MODIFIED="1696014421378" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/TMS_TG$Matdata.coverage" NAME="Matdata Coverage Results" MODIFIED="1688658637104" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/TMS_TG$TMS_TG.coverage" NAME="TMS-TG Coverage Results" MODIFIED="1685709413433" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/tms_tg$matpy.coverage" NAME="matpy Coverage Results" MODIFIED="1694000843520" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/TMS_TG$DATAanalysis.coverage" NAME="DATAanalysis Coverage Results" MODIFIED="1689593441631" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/TMS_TG$MATfile.coverage" NAME="MATfile Coverage Results" MODIFIED="1688651271977" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
-    <SUITE FILE_PATH="coverage/tms_tg$figure1a.coverage" NAME="figure1a Coverage Results" MODIFIED="1695991352418" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure1" />
+    <SUITE FILE_PATH="coverage/tms_tg$figure1a.coverage" NAME="figure1a Coverage Results" MODIFIED="1695991912350" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure1" />
     <SUITE FILE_PATH="coverage/TMS_TG$MATdata.coverage" NAME="MATdata Coverage Results" MODIFIED="1689001586275" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
   </component>
 </project>

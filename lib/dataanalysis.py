@@ -26,10 +26,8 @@ def peristim_firingrate_decorator(fcn):
         step = smoothingParams['width'] * (1 - smoothingParams['overlap'])
         ps_T = np.arange(0, timeIntervals[0, 1] - timeIntervals[0, 0], step)
         ps_FR = np.zeros((timeIntervals.shape[0], len(ps_T), len(spikeTimes)), dtype=np.float_)
-
-        nb.set_num_threads(max(1, int(nb.config.NUMBA_NUM_THREADS // 1.25)))
         ps_FR, ps_T = fcn(ps_FR, ps_T, spikeTimes, timeIntervals, f)
-        nb.set_num_threads(nb.config.NUMBA_DEFAULT_NUM_THREADS)
+
         return ps_FR, ps_T
 
     return wrapper
@@ -95,3 +93,6 @@ if __name__ == '__main__':
 
     ps_FR, ps_T = peristim_firingrate(singleUnitsSpikeTimes, timeIntervals,
                                       avg={'win': 'gauss', 'width': 3.0, 'overlap': 0.0})
+
+    # nb.set_num_threads(max(1, int(nb.config.NUMBA_NUM_THREADS // 1.25)))
+    # nb.set_num_threads(nb.config.NUMBA_DEFAULT_NUM_THREADS)
