@@ -6,24 +6,10 @@ import os
 import re
 from typing import Optional, Any
 from itertools import zip_longest
-from functools import cached_property, lru_cache
+from functools import lru_cache
 import lib.helper_tms_tg as th
 from scipy import stats
-
-LAYERS = {'L23': (200, 800), 'L4': (800, 1200), 'L5': (1200, 1600), 'L6': (1600, 1900)}
-REGIONS = {'thal': ['BZ', 'CZ', 'CL', 'PC'],
-           'BG': ['STN'],
-           'MC': ['CFA', 'MC'],
-           'SC': ['S1', 'SC'],
-           'VC': ['V1', 'VC']}
-COILDIR = {'ML', 'LM', 'PA', 'AP'}
-STIMHEM = {'LH', 'RH'}
-COILPOS = {'MC', 'SC', 'VC'}
-MANIPULATION = {'MUS'}
-
-EPOCHISOLATORS = ['Animal', 'Region', 'Layer', 'CoilHemVsRecHem', 'Mov', 'Depth']
-COLS_WITH_FLOATS = {'MSO ', 'MT', 'no. of Trigs', 'Stimpulses', 'Depth_int'}
-COLS_WITH_STRINGS = {'StimHem', 'CoilDir', 'TG-Injection ', 'RecArea ', 'RecHem', 'Filename'}
+from lib.constants import LAYERS, REGIONS, EPOCHISOLATORS, COLS_WITH_STRINGS, COLS_WITH_FLOATS
 
 
 def _filter_blocks_helper(
@@ -61,7 +47,7 @@ def _filter_blocks_helper(
             boolIndex &= blocksinfo[col] <= np.float_(val)
         elif re.match('<', string):
             val = re.sub('<', '', string)
-            boolIndex &= blocksinfo[col] <= np.float_(val)
+            boolIndex &= blocksinfo[col] < np.float_(val)
         elif re.match('>=', string):
             val = re.sub('>=', '', string)
             boolIndex &= blocksinfo[col] >= np.float_(val)
@@ -75,8 +61,8 @@ def _filter_blocks_helper(
     # change the truth values of Index by doing string comparison on dataframe columns
     selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_STRINGS
     for col in selectCols:
-        string = analysis_params['selectionParams'][col]
-        boolIndex &= blocksinfo[col].str.contains(string)
+        strings = analysis_params['selectionParams'][col]
+        boolIndex &= blocksinfo[col].str.contains('|'.join(strings))
 
     return blocksinfo.loc[boolIndex, :], boolIndex
 
@@ -128,16 +114,16 @@ class TMSTG(object):
     """
     _default_analysis_params = {
         'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ]))},
-        'TMSArtifactParams': {'timeWin': (-0.3, 0.3)},
-        'peristimParams': {'smoothingParams': {'win': 'gauss', 'width': 2.0, 'overlap': 1 / 2},
+        'TMSArtifactParams': {'timeWin': (-0.3, 0.5)},
+        'peristimParams': {'smoothingParams': {'win': 'gaussian', 'width': 2.0, 'overlap': 1 / 2},
                            'timeWin': (-20, 100),
                            'trigger': {'TMS': None},
                            'baselinetimeWin': (-50, -1)},
         'lateComponentParams': {'minDelay': 10, 'method': ('std', 3)}}
 
     analysis_params = th.AnalysisParams(_default_analysis_params)
-    psfr = th.PSFR()
-    psts = th.Raster()
+    # psfr = th.PSFR()
+    # psts = th.Raster()
     filter_blocks = FilterBlocks()
 
     # TODO: LateComponent implementation
@@ -368,11 +354,14 @@ class TMSTG(object):
                             + np.array(self.analysis_params['TMSArtifactParams']['timeWin'])
 
         else:
-            timeIntervals = trigger.reshape((trigger.size // 2, 2)) \
-                            + np.array(self.analysis_params['TMSArtifactParams']['timeWin'])
-            print(f'amplifier trigger channel no. {ampTrigIdx} is empty for epoch {epochIndex},... ')
+            print(f'Amplifier trigger channel no. {ampTrigIdx} is empty for epoch {epochIndex},... ')
             print(f'therefore using trigger channel no. {trigChanIdx} to remove spikes around TMSArtifact....')
-            print(f'width of the trigger for this channel is {np.mean(trigger[1::2] - trigger[::2])} secs ')
+            print(f'As the width of the trigger for this channel is {np.mean(trigger[1::2] - trigger[::2])} secs, ')
+            print(f'it is expanded to match amplifier trig width of {1 + np.mean(trigger[1::2] - trigger[::2])} secs.')
+            print('')
+            timeIntervals = trigger.reshape((trigger.size // 2, 2)) \
+                            + (np.array([-0.2, 0.8], dtype=trigger.dtype)
+                               + np.array(self.analysis_params['TMSArtifactParams']['timeWin']))
 
         mask = np.zeros_like(spikeTimes, dtype=bool)
         for timeInterval in timeIntervals:
@@ -385,18 +374,16 @@ class TMSTG(object):
 if __name__ == '__main__':
     animalList = r'G:\Vishnu\data\TMSTG\animalList.xlsx'
     tms = TMSTG.load(animalList)
-    # tms.psfr
 
-    # dir_path = r'G:\Vishnu\data\TMSTG\20180922'
-    # matlabfiles = pd.Series(dir_path + '\\' + f for f in os.listdir(dir_path) if f.endswith('.mat'))
-    # infofile = [dir_path + '\\' + f for f in os.listdir(dir_path) if f.endswith('.xlsx')]
-    # tms = TMSTG.load(matlabfiles, infofile[0])
     th._check_trigger_numbers(tms.matdata, tms.blocksinfo)
     th._check_mso_order(tms.matdata, tms.blocksinfo)
 
-    tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'MC',
-                                                         'Layer': 'L23'},
-                                               'MT': '>1'}}
+    # tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'MC',
+    #                                                      'Layer': 'L23'},
+    #                                            'MT': '>=1'}}
+
+    tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'thal'},
+                                               'MT': '>=0'}}
     ps_TS = tms.psts
     ps_FR, ps_T, ps_baselineFR, _ = tms.psfr
     tms.psfr

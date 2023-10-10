@@ -4,6 +4,7 @@ import re
 from lib.dataanalysis import peristim_firingrate, peristim_timestamp
 from collections.abc import Iterator
 from functools import lru_cache
+from lib.constants import COLS_WITH_STRINGS
 
 
 class AnalysisParams(object):
@@ -46,6 +47,11 @@ class AnalysisParams(object):
                             else:
                                 params['selectionParams']['Epoch'][epochKey] \
                                     = self.analysis_params['selectionParams']['Epoch'][epochKey]
+
+                    for col in params['selectionParams'].keys() & COLS_WITH_STRINGS:
+                        if not issubclass(type(params['selectionParams'][col]), tuple | set | list | np.ndarray):
+                            params['selectionParams'][col] = (params['selectionParams'][col], )
+
                 else:
                     params['selectionParams'] = self.analysis_params['selectionParams']
 
@@ -110,15 +116,16 @@ class AnalysisParams(object):
                     raise ValueError
 
             except ValueError:
-                print(f'psfr_params does not adhere to correct format, '
+                print(f'analysis_params does not adhere to correct format, '
                       f'using instead default/previous params...')
 
-            print('psfr_params set to: ', params)
+            print('analysis_params set to: ', params)
+            print('----------------------------')
             self.analysis_params = params
 
             # do housekeeping
             obj.psfr = list(), list(), list(), list()
-            obj.Raster = list()
+            obj.psts = list()
             obj.filter_blocks = None
             _, _ = obj.filter_blocks
 
@@ -231,7 +238,7 @@ def _check_trigger_numbers(matdata, blocksinfo):
     for epochIndex in epochIndices:
         trigger = _read_trigger(matdata[epochIndex])
         assert blocksinfo.loc[epochIndex, 'no. of Trigs'].sum() == len(trigger), \
-            f'no. of triggers in epoch {epochIndex} does not match with mat-data'
+            f'no. of triggers in epoch {epochIndex} does not match with mat-data ({len(trigger)})'
         # matdata[epochIndex][matdata[epochIndex]['CombiMCD_fnames'].flatten()[0]].tobytes().decode('utf-16')
 
 
@@ -248,9 +255,16 @@ def _check_mso_order(matdata, blocksinfo):
     for epochIndex in epochIndices:
         mso = _read_MSO(matdata[epochIndex])
         nonZeroMSOindices = blocksinfo.loc[epochIndex, 'MSO '].to_numpy() != 0
-        assert all(blocksinfo.loc[epochIndex, 'MSO '][nonZeroMSOindices]
-                   == mso[nonZeroMSOindices]), \
-            f'mso order in epoch {epochIndex} differs from mat-data'
+        try:
+            assert all(blocksinfo.loc[epochIndex, 'MSO '][nonZeroMSOindices] == mso[nonZeroMSOindices])
+
+        except AssertionError:
+            # check the case where filenames were not correctly labeled with _mso values
+            refs = matdata[epochIndex]['CombiMCD_fnames'].flatten()
+            combiMCDFnames = pd.Series([matdata[epochIndex][i].flatten().tobytes().decode('utf-16') for i in refs])
+            fnames = combiMCDFnames.str.rsplit(pat='\\', n=1, expand=True)[1]
+            assert all(fnames.values == blocksinfo.loc[epochIndex, 'Filename'].values), \
+                f'mso order in epoch {epochIndex} differs from mat-data'
 
 
 class LateComponent(object):

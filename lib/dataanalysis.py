@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import lib.matpy as mp
 import numba as nb
 from lib.math_fcns import gaussian, rectangular
@@ -89,10 +88,10 @@ if __name__ == '__main__':
     # ps_FR, ps_T = peristim_firingrate(singleUnitsSpikeTimes, timeIntervals)
 
     ps_FR, ps_T = peristim_firingrate(singleUnitsSpikeTimes, timeIntervals,
-                                      smoothingParams={'win': 'gauss', 'width': 3.0, 'overlap': 1 / 3})
+                                      smoothingParams={'win': 'gaussian', 'width': 3.0, 'overlap': 1 / 3})
 
     ps_FR, ps_T = peristim_firingrate(singleUnitsSpikeTimes, timeIntervals,
-                                      avg={'win': 'gauss', 'width': 3.0, 'overlap': 0.0})
+                                      avg={'win': 'gaussian', 'width': 3.0, 'overlap': 0.0})
 
     # nb.set_num_threads(max(1, int(nb.config.NUMBA_NUM_THREADS // 1.25)))
     # nb.set_num_threads(nb.config.NUMBA_DEFAULT_NUM_THREADS)
