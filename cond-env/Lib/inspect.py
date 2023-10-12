@@ -1682,7 +1682,7 @@ def trace(context=1):
 _sentinel = object()
 
 def _static_getmro(klass):
-    return type.__dict__['__mro__'].__get__(klass)
+    return type.__dict__['__mro__'].__get__(klass, )
 
 def _check_instance(obj, attr):
     instance_dict = {}
@@ -1713,7 +1713,7 @@ def _shadowed_dict(klass):
     dict_attr = type.__dict__["__dict__"]
     for entry in _static_getmro(klass):
         try:
-            class_dict = dict_attr.__get__(entry)["__dict__"]
+            class_dict = dict_attr.__get__(entry, )["__dict__"]
         except KeyError:
             pass
         else:
