@@ -50,7 +50,7 @@ class AnalysisParams(object):
 
                     for col in params['selectionParams'].keys() & COLS_WITH_STRINGS:
                         if not issubclass(type(params['selectionParams'][col]), tuple | set | list | np.ndarray):
-                            params['selectionParams'][col] = (params['selectionParams'][col], )
+                            params['selectionParams'][col] = (params['selectionParams'][col],)
 
                 else:
                     params['selectionParams'] = self.analysis_params['selectionParams']
@@ -124,8 +124,10 @@ class AnalysisParams(object):
             self.analysis_params = params
 
             # do housekeeping
-            obj.psfr = list(), list(), list(), list()
-            obj.psts = list()
+            if 'psfr' in obj.__dict__:
+                del obj.psfr
+            if 'psts' in obj.__dict__:
+                del obj.psts
             obj.filter_blocks = None
             _, _ = obj.filter_blocks
 
@@ -133,80 +135,49 @@ class AnalysisParams(object):
         return self.analysis_params
 
 
-class PSFR(object):
-    """
-    Compute peri-stimulus firing rate and cache it when demanded
-    """
-
-    def __init__(self):
-        self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T \
-            = list(), list(), list(), list()
-
-    def __set__(self, obj, *args):
-        self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T \
-            = args[0][0], args[0][1], args[0][2], args[0][3]
-
-    def __get__(self, obj, objType) -> tuple[list, list, list, list]:
-
-        if len(self._ps_FR) != 0:
-            return self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T
-
-        _check_trigger_numbers(obj.matdata, obj.blocksinfo)
-        _check_mso_order(obj.matdata, obj.blocksinfo)
-        selectBlocks, selectBlocksIdx = obj.filter_blocks
-
-        for epochIndex, blockinfo in selectBlocks.iterrows():
-            selectTrigger = _get_trigger_times_for_current_block(
-                obj.analysis_params['peristimParams']['trigger'], obj.matdata[epochIndex], blockinfo)
-
-            timeIntervals = _compute_timeIntervals(
-                selectTrigger, *obj.analysis_params['peristimParams']['timeWin'])
-            tmp_ps_FR, self._ps_T \
-                = peristim_firingrate(obj.singleUnitsSpikeTimes(epochIndex),
-                                      timeIntervals,
-                                      obj.analysis_params['peristimParams']['smoothingParams'])
-            self._ps_FR.append(tmp_ps_FR)
-
-            timeIntervals_baseline, baselineWinWidth = _compute_timeIntervals_baseline(
-                selectTrigger, *obj.analysis_params['peristimParams']['baselinetimeWin'])
-            tmp_ps_FR, self._ps_baseline_T \
-                = peristim_firingrate(obj.singleUnitsSpikeTimes(epochIndex),
-                                      timeIntervals_baseline,
-                                      {'win': 'rect', 'width': baselineWinWidth, 'overlap': 0.0})
-            self._ps_baseline_FR.append(tmp_ps_FR)
-
-        return self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T
-
-
-class Raster(object):
-    """
-    Compute peri-stimulus spike time-stamps and cache it when demanded
-    """
-
-    def __init__(self):
-        self._ps_TS = list()
-
-    def __set__(self, obj, value):
-        self._ps_TS = value
-
-    def __get__(self, obj, objType) -> list:
-
-        if len(self._ps_TS) != 0:
-            return self._ps_TS
-
-        _check_trigger_numbers(obj.matdata, obj.blocksinfo)
-        _check_mso_order(obj.matdata, obj.blocksinfo)
-        selectBlocks, selectBlocksIdx = obj.filter_blocks
-
-        for epochIndex, blockinfo in selectBlocks.iterrows():
-            selectTrigger = _get_trigger_times_for_current_block(
-                obj.analysis_params['peristimParams']['trigger'], obj.matdata[epochIndex], blockinfo)
-            timeIntervals = _compute_timeIntervals(
-                selectTrigger, *obj.analysis_params['peristimParams']['timeWin'])
-            tmp_ps_TS = peristim_timestamp(obj.singleUnitsSpikeTimes(epochIndex), timeIntervals)
-            self._ps_TS.append(tmp_ps_TS)
-
-        return self._ps_TS
+# class PSFR(object):
+#     """
+#     Compute peri-stimulus firing rate and cache it when demanded
+#     """
+#
+#     def __init__(self):
+#         self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T \
+#             = list(), list(), list(), list()
+#
+#     def __set__(self, obj, *args):
+#         self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T \
+#             = args[0][0], args[0][1], args[0][2], args[0][3]
+#
+#     def __get__(self, obj, objType) -> tuple[list, list, list, list]:
+#
+#         if len(self._ps_FR) != 0:
+#             return self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T
+#
+#         _check_trigger_numbers(obj.matdata, obj.blocksinfo)
+#         _check_mso_order(obj.matdata, obj.blocksinfo)
+#         selectBlocks, selectBlocksIdx = obj.filter_blocks
+#
+#         for epochIndex, blockinfo in selectBlocks.iterrows():
+#             selectTrigger = _get_trigger_times_for_current_block(
+#                 obj.analysis_params['peristimParams']['trigger'], obj.matdata[epochIndex], blockinfo)
+#
+#             timeIntervals = _compute_timeIntervals(
+#                 selectTrigger, *obj.analysis_params['peristimParams']['timeWin'])
+#             tmp_ps_FR, self._ps_T \
+#                 = peristim_firingrate(obj.singleUnitsSpikeTimes(epochIndex),
+#                                       timeIntervals,
+#                                       obj.analysis_params['peristimParams']['smoothingParams'])
+#             self._ps_FR.append(tmp_ps_FR)
+#
+#             timeIntervals_baseline, baselineWinWidth = _compute_timeIntervals_baseline(
+#                 selectTrigger, *obj.analysis_params['peristimParams']['baselinetimeWin'])
+#             tmp_ps_FR, self._ps_baseline_T \
+#                 = peristim_firingrate(obj.singleUnitsSpikeTimes(epochIndex),
+#                                       timeIntervals_baseline,
+#                                       {'win': 'rect', 'width': baselineWinWidth, 'overlap': 0.0})
+#             self._ps_baseline_FR.append(tmp_ps_FR)
+#
+#         return self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T
 
 
 def _get_trigger_times_for_current_block(trigParams, matdatum, blockinfo):
@@ -233,7 +204,7 @@ def _read_trigger(matdatum):
     return matdatum[refs[trigChanIdx]].flatten()[::2] * 1e3
 
 
-def _check_trigger_numbers(matdata, blocksinfo):
+def _check_trigger_numbers(matdata, blocksinfo) -> None:
     epochIndices = blocksinfo.index.unique().to_numpy()
     for epochIndex in epochIndices:
         trigger = _read_trigger(matdata[epochIndex])
@@ -250,7 +221,7 @@ def _read_MSO(matdatum):
         [int(re.findall(r'\d+', item)[0]) if re.findall(r'\d+', item) else 0 for item in mso])
 
 
-def _check_mso_order(matdata, blocksinfo):
+def _check_mso_order(matdata, blocksinfo) -> None:
     epochIndices = blocksinfo.index.unique().to_numpy()
     for epochIndex in epochIndices:
         mso = _read_MSO(matdata[epochIndex])

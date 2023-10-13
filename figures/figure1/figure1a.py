@@ -109,7 +109,7 @@ def plot(tms, colParams=None, rasterOnly=False, rasterAndPsfr=False, rasterAndPo
                 # compute peristimulus timestamps and firing-rates
                 ps_TS = compute_raster(tms, tuple(selectBlocksinfo.index.to_numpy()))
                 if rasterAndPsfr or rasterAndPopulationAvgFR:
-                    [ps_FR, ps_T, ps_baseline_FR, _] = compute_psfr(tms, tuple(selectBlocksinfo.index.to_numpy()))
+                    ps_FR, ps_T, ps_baseline_FR, _ = compute_psfr(tms, tuple(selectBlocksinfo.index.to_numpy()))
                     ps_T_corrected = tms.analysis_params['peristimParams']['timeWin'][0] + ps_T
 
                 # randomly sample an epoch for plotting

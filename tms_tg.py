@@ -1,15 +1,17 @@
 import numpy as np
 import numba as nb
 import pandas as pd
-import lib.matpy as mp
+from scipy import stats
 import os
 import re
 from typing import Optional, Any
 from itertools import zip_longest
-from functools import lru_cache
+from functools import lru_cache, cached_property
+
+import lib.matpy as mp
 import lib.helper_tms_tg as th
-from scipy import stats
 from lib.constants import LAYERS, REGIONS, EPOCHISOLATORS, COLS_WITH_STRINGS, COLS_WITH_FLOATS
+from lib.dataanalysis import peristim_firingrate, peristim_timestamp
 
 
 def _filter_blocks_helper(
@@ -104,12 +106,11 @@ class TMSTG(object):
 
     Attributes
     ---------
-    psfr:       {Descriptor}    get 'Peristimulus Firing Rate' and set 'parameters' for computing it
-    spikeTimes: {Descriptor}    get spikeTimes of single units, set 'index' for selection
-    lateComp:
+    psfr:                   {cached property}    get 'Peristimulus Firing Rate'
+    psts:                   {cached property}    get 'Peristimulus time stamps'
+    singleUnitsSpikeTimes:  {cached property}    get spikeTimes of single units, set 'index' for selection
 
     do_multi_indexing:      changes the index of "infofile" {DataFrame} to multiIndex
-
 
     """
     _default_analysis_params = {
@@ -122,8 +123,6 @@ class TMSTG(object):
         'lateComponentParams': {'minDelay': 10, 'method': ('std', 3)}}
 
     analysis_params = th.AnalysisParams(_default_analysis_params)
-    # psfr = th.PSFR()
-    # psts = th.Raster()
     filter_blocks = FilterBlocks()
 
     # TODO: LateComponent implementation
@@ -169,6 +168,70 @@ class TMSTG(object):
         return cls(
             pd.Series([mp.MATfile(fname).read() for fname in groupMatlabfnames], index=groupBlocksinfo.index.unique()),
             groupBlocksinfo)
+
+    @cached_property
+    def psts(self) -> list:
+        """
+        Compute peri-stimulus spike time-stamps
+
+        Returns
+        -------
+        List containing spike time-stamps from each block
+
+        """
+        print('psts runs...........')
+        th._check_trigger_numbers(self.matdata, self.blocksinfo)
+        th._check_mso_order(self.matdata, self.blocksinfo)
+        selectBlocks, selectBlocksIdx = self.filter_blocks
+
+        psTS = list()
+        for epochIndex, blockinfo in selectBlocks.iterrows():
+            selectTrigger = th._get_trigger_times_for_current_block(
+                self.analysis_params['peristimParams']['trigger'], self.matdata[epochIndex], blockinfo)
+            timeIntervals = th._compute_timeIntervals(
+                selectTrigger, *self.analysis_params['peristimParams']['timeWin'])
+            psTS.append(peristim_timestamp(self.singleUnitsSpikeTimes(epochIndex), timeIntervals))
+
+        return psTS
+
+    @cached_property
+    def psfr(self) -> tuple[list, np.ndarray, list, np.ndarray]:
+        """
+        Compute peri-stimulus firing rate
+
+        Returns
+        -------
+        tuple of Lists; list of peri-stimulus firing rate, its timing,
+        list of baseline firing rate, its timing for each block
+
+        """
+        print('psfr runs...........')
+        th._check_trigger_numbers(self.matdata, self.blocksinfo)
+        th._check_mso_order(self.matdata, self.blocksinfo)
+        selectBlocks, selectBlocksIdx = self.filter_blocks
+
+        ps_FR, ps_baseline_FR = list(), list()
+        ps_T, ps_baseline_T = np.array([]), np.array([])
+        for epochIndex, blockinfo in selectBlocks.iterrows():
+            selectTrigger = th._get_trigger_times_for_current_block(
+                self.analysis_params['peristimParams']['trigger'], self.matdata[epochIndex], blockinfo)
+
+            timeIntervals = th._compute_timeIntervals(
+                selectTrigger, *self.analysis_params['peristimParams']['timeWin'])
+            tmp_ps_FR, ps_T = peristim_firingrate(self.singleUnitsSpikeTimes(epochIndex),
+                                                  timeIntervals,
+                                                  self.analysis_params['peristimParams']['smoothingParams'])
+            ps_FR.append(tmp_ps_FR)
+
+            timeIntervals_baseline, baselineWinWidth = th._compute_timeIntervals_baseline(
+                selectTrigger, *self.analysis_params['peristimParams']['baselinetimeWin'])
+            tmp_ps_FR, ps_baseline_T \
+                = peristim_firingrate(self.singleUnitsSpikeTimes(epochIndex),
+                                      timeIntervals_baseline,
+                                      {'win': 'rect', 'width': baselineWinWidth, 'overlap': 0.0})
+            ps_baseline_FR.append(tmp_ps_FR)
+
+        return ps_FR, ps_T, ps_baseline_FR, ps_baseline_T
 
     @staticmethod
     def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[Any] = None) -> None:
@@ -239,7 +302,7 @@ class TMSTG(object):
 
     def avg_FR_per_neuron(self, squeezeDim=True):
         """
-        Calculate average peristimulus firing rate
+        Calculate average peristimulus firing rate of each neuron
 
         Parameters
         ----------
@@ -317,7 +380,7 @@ class TMSTG(object):
     def _remove_spikes_within_TMSArtifact_timeWin(self,
                                                   spikeTimes: np.ndarray,
                                                   singleUnitsIndices: list,
-                                                  epochIndex: tuple) -> np.ndarray:
+                                                  epochIndex: tuple) -> list[np.ndarray]:
         """
         Removes spikes that fall inside the closed interval specified in 'TMSArtifactParams'
 
@@ -331,6 +394,7 @@ class TMSTG(object):
         multiUnitSpikeTimes with spikes removed
 
         """
+
         refs = self.matdata[epochIndex]['rawData/trigger'].flatten()
         trigChanIdx = self.matdata[epochIndex]['TrigChan_ind'][0, 0].astype(int) - 1
         ampTrigIdx = 2
@@ -350,8 +414,8 @@ class TMSTG(object):
                 assert ampTrigger.size == len(trigger), \
                     f'for epoch {epochIndex} length of ampTrigger and tmsTrigger are not the same'
 
-            timeIntervals = ampTrigger.reshape((ampTrigger.size // 2, 2)) \
-                            + np.array(self.analysis_params['TMSArtifactParams']['timeWin'])
+            timeIntervals = (ampTrigger.reshape((ampTrigger.size // 2, 2))
+                             + np.array(self.analysis_params['TMSArtifactParams']['timeWin']))
 
         else:
             print(f'Amplifier trigger channel no. {ampTrigIdx} is empty for epoch {epochIndex},... ')
@@ -359,9 +423,9 @@ class TMSTG(object):
             print(f'As the width of the trigger for this channel is {np.mean(trigger[1::2] - trigger[::2])} secs, ')
             print(f'it is expanded to match amplifier trig width of {1 + np.mean(trigger[1::2] - trigger[::2])} secs.')
             print('')
-            timeIntervals = trigger.reshape((trigger.size // 2, 2)) \
-                            + (np.array([-0.2, 0.8], dtype=trigger.dtype)
-                               + np.array(self.analysis_params['TMSArtifactParams']['timeWin']))
+            timeIntervals = (trigger.reshape((trigger.size // 2, 2))
+                             + (np.array([-0.2, 0.8], dtype=trigger.dtype)
+                                + np.array(self.analysis_params['TMSArtifactParams']['timeWin'])))
 
         mask = np.zeros_like(spikeTimes, dtype=bool)
         for timeInterval in timeIntervals:
@@ -383,7 +447,8 @@ if __name__ == '__main__':
     #                                            'MT': '>=1'}}
 
     tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'thal'},
-                                               'MT': '>=0'}}
+                                               'MT': '>=1.2',
+                                               'RecArea ': ('VPM', 'PO')}}
     ps_TS = tms.psts
     ps_FR, ps_T, ps_baselineFR, _ = tms.psfr
     tms.psfr
