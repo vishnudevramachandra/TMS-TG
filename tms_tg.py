@@ -1,7 +1,7 @@
 import numpy as np
 import numba as nb
 import pandas as pd
-from scipy import stats
+from statistics import mean, mode
 import os
 import re
 from typing import Optional, Any
@@ -116,16 +116,13 @@ class TMSTG(object):
     _default_analysis_params = {
         'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ]))},
         'TMSArtifactParams': {'timeWin': (-0.3, 0.5)},
-        'peristimParams': {'smoothingParams': {'win': 'gaussian', 'width': 2.0, 'overlap': 1 / 2},
-                           'timeWin': (-20, 100),
+        'peristimParams': {'smoothingParams': {'win': 'gaussian', 'width': 1.5, 'overlap': 1 / 3},
+                           'timeWin': (-20.0, 100.0),
                            'trigger': {'TMS': None},
-                           'baselinetimeWin': (-50, -1)},
-        'lateComponentParams': {'minDelay': 10, 'method': ('std', 3)}}
+                           'baselinetimeWin': (-50.0, -1.0)}}
 
     analysis_params = th.AnalysisParams(_default_analysis_params)
     filter_blocks = FilterBlocks()
-
-    # TODO: LateComponent implementation
     late_comp = th.LateComponent()
 
     def __init__(self, matdata=None, blocksinfo=None) -> None:
@@ -236,15 +233,18 @@ class TMSTG(object):
     @staticmethod
     def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[Any] = None) -> None:
         """
-        Concatenates a new column to passed in DataFrame
+        Adds a new column to passed DataFrame
 
         Parameters
         ----------
-        blocksinfo:  DataFrame containing block information. If no argument is passed to
-                    'value' parameter then the DataFrame has to be multi-indexed
-        colName:    name for new column
-        value:      [Optional] value that is added to all rows of DataFrame
+        blocksinfo:  [DataFrame] if the 'value' parameter is equal to None, then
+                     this has to be MultiIndex-ed DataFrame containing block information
+        colName:     name for the newly added column
+        value:       [Optional] all rows of the newly added column are set to this value
 
+        Returns
+        -------
+        DataFrame with an added column
         """
 
         if colName not in blocksinfo.columns:
@@ -271,8 +271,11 @@ class TMSTG(object):
 
         Parameters
         ----------
-        blocksinfo:  MultiIndex-ed DataFrame containing block information.
+        blocksinfo: [DataFrame] read infofile (having block information).
 
+        Returns
+        -------
+        MultiIndex-ed DataFrame containing block information.
         """
         df = blocksinfo.copy()
         df.loc[:, 'Depth'] = df['Depth'].str.removesuffix('µm')
@@ -300,49 +303,54 @@ class TMSTG(object):
         df.sort_index(inplace=True)
         return df
 
-    def avg_FR_per_neuron(self, squeezeDim=True):
+    def avg_FR_per_neuron(self, squeezeDim=True) -> tuple[np.ndarray | list, np.ndarray, np.ndarray | list, np.ndarray]:
         """
         Calculate average peristimulus firing rate of each neuron
 
         Parameters
         ----------
-        squeezeDim: [Flag]  True:   returns matrix
-                            False:  collapsed over row axis
+        squeezeDim: [Flag]  True:   returns 2-D array
+                            False:  returns 3-D array (mean computed over axis=0)
 
         Returns
         -------
-        matrix[N X Time] or list of matrices[[N X Time]]
+        array[Time X N] - average peristimulus activity,
+        array[1D]       - Time points of peristimulus activity,
+        array[1 X N]    - baseline firing rate,
+        array[1D]       - mid-time point of baseline firing rate
 
         or
 
-        matrix[1 X Time X N] or list of matrices[[1 X Time X N]]
+        list of arrays[[1 X Time X N], ]    - average peristimulus activity,
+        array[1D]                           - Time points of peristimulus activity,
+        list of arrays[[1 X N], ]           - baseline firing rate,
+        array[1D]                           - mid-time point of baseline firing rate
         """
 
         ps_FR, ps_T, ps_baseline_FR, ps_baseline_T = self.psfr
 
         if squeezeDim:
-            return np.concatenate([block_psfr.mean(axis=0) for block_psfr in ps_FR], axis=1).T, \
-                   ps_T, \
-                   np.concatenate([block_bsfr.mean(axis=0) for block_bsfr in ps_baseline_FR], axis=1).T, \
-                   ps_baseline_T
+            return np.asfortranarray(np.concatenate([block_psfr.mean(axis=0) for block_psfr in ps_FR], axis=1)), \
+                ps_T + tms.analysis_params['peristimParams']['timeWin'][0], \
+                np.concatenate([block_bsfr.mean(axis=0) for block_bsfr in ps_baseline_FR], axis=1), \
+                ps_baseline_T + mean(tms.analysis_params['peristimParams']['baselinetimeWin'])
         else:
             return [block_psfr.mean(axis=0, keepdims=True) for block_psfr in ps_FR], \
-                   ps_T, \
-                   [block_bsfr.mean(axis=0, keepdims=True) for block_bsfr in ps_baseline_FR], \
-                   ps_baseline_T
+                ps_T + tms.analysis_params['peristimParams']['timeWin'][0], \
+                [block_bsfr.mean(axis=0, keepdims=True) for block_bsfr in ps_baseline_FR], \
+                ps_baseline_T + mean(tms.analysis_params['peristimParams']['baselinetimeWin'])
 
     @lru_cache(maxsize=None)
     def singleUnitsSpikeTimes(self, epochIndex) -> 'nb.typed.List':
         multiUnitSpikeTimes: np.ndarray = self.matdata.loc[epochIndex]['SpikeModel/SpikeTimes/data'].flatten()
         refs = self.matdata.loc[epochIndex]['SpikeModel/ClusterAssignment/data'].flatten()
         singleUnitsIndices = [self.matdata.loc[epochIndex][i].flatten().astype(int) - 1 for i in refs]
-        if (self.analysis_params['TMSArtifactParams'] is not None
-                or self.analysis_params['TMSArtifactParams'] is not None):
+        if self.analysis_params['TMSArtifactParams'] is not None:
             singleUnitsIndices \
                 = self._remove_spikes_within_TMSArtifact_timeWin(multiUnitSpikeTimes, singleUnitsIndices, epochIndex)
-        singleUnitsSpikeTimes = nb.typed.List()
-        [singleUnitsSpikeTimes.append(multiUnitSpikeTimes[sU_indices]) for sU_indices in singleUnitsIndices]
-        return singleUnitsSpikeTimes
+        sUSpikeTimes = nb.typed.List()
+        [sUSpikeTimes.append(multiUnitSpikeTimes[sU_indices]) for sU_indices in singleUnitsIndices]
+        return sUSpikeTimes
 
     @staticmethod
     def _sort_filelist(matlabfnames, blocksinfo) -> None:
@@ -386,13 +394,13 @@ class TMSTG(object):
 
         Parameters
         ----------
-        spikeTimes:     multiUnitSpikeTimes
-        epochIndex:     index of matdata from which multiUnitSpikeTimes were extracted
+        spikeTimes:             multiUnitSpikeTimes
+        singleUnitsIndices:     list of single unit indices
+        epochIndex:             index of matdata from which multiUnitSpikeTimes were extracted
 
         Returns
         -------
-        multiUnitSpikeTimes with spikes removed
-
+        list of single unit indices that fall outside the closed interval specified in 'TMSArtifactParams'
         """
 
         refs = self.matdata[epochIndex]['rawData/trigger'].flatten()
@@ -404,7 +412,7 @@ class TMSTG(object):
             if len(ampTrigger) > len(trigger):
                 # take care of wrong ampTriggers
                 ampTrigger = ampTrigger.reshape((ampTrigger.size // 2, 2))
-                cond = stats.mode(np.diff(ampTrigger, axis=1))[0]
+                cond = mode(np.diff(ampTrigger, axis=1))
                 i = 0
                 while i < ampTrigger.shape[0]:
                     if (ampTrigger[i, 1] - ampTrigger[i, 0]) < (cond - 0.1):
@@ -449,6 +457,10 @@ if __name__ == '__main__':
     tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'thal'},
                                                'MT': '>=1.2',
                                                'RecArea ': ('VPM', 'PO')}}
-    ps_TS = tms.psts
-    ps_FR, ps_T, ps_baselineFR, _ = tms.psfr
-    tms.psfr
+
+    meanPSFR, t, meanBaselineFR, _ = tms.avg_FR_per_neuron()
+    delays = tms.late_comp.compute_delay(meanPSFR,
+                                         t,
+                                         meanPSFR[t < 0, :].max(axis=0, keepdims=True),
+                                         tms.analysis_params['peristimParams']['smoothingParams']['width'] + 0.25)
+    delays
