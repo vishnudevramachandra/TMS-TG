@@ -2,6 +2,7 @@ import numpy as np
 import lib.matpy as mp
 import numba as nb
 from lib.math_fcns import gaussian, rectangular
+from scipy import stats
 
 
 def peristim_firingrate_decorator(fcn):
@@ -23,7 +24,7 @@ def peristim_firingrate_decorator(fcn):
                     return sum(rectangular(x, width=smWidth)) / (smWidth * 1e-3)
 
         step = smoothingParams['width'] * (1 - smoothingParams['overlap'])
-        ps_T = np.arange(0, timeIntervals[0, 1] - timeIntervals[0, 0], step)
+        ps_T = np.arange(0, stats.mode(timeIntervals.ptp(axis=1))[0], step)
         ps_FR = np.zeros((timeIntervals.shape[0], len(ps_T), len(spikeTimes)), dtype=np.float_)
         ps_FR, ps_T = fcn(ps_FR, ps_T, spikeTimes, timeIntervals, f)
 
