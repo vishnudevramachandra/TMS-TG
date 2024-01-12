@@ -1,7 +1,7 @@
 import numpy as np
 import lib.matpy as mp
 import numba as nb
-from lib.math_fcns import gaussian, rectangular
+from lib.math_fcns import gaussian, rectangular, triangular
 from scipy import stats
 
 
@@ -17,6 +17,11 @@ def peristim_firingrate_decorator(fcn):
                 @nb.jit(nopython=True)
                 def f(x):
                     return sum(gaussian(x, sig=smWidth)) / 1e-3
+
+            case 'triangular':
+                @nb.jit(nopython=True)
+                def f(x):
+                    return sum(triangular(x, width=smWidth)) / (smWidth * 1e-3)
 
             case _:
                 @nb.jit(nopython=True)
@@ -44,7 +49,7 @@ def peristim_firingrate(
             # loop over neurons (use timestamps of each neuron to assign firing rate)
             for i, singleUnitSpikeTimes in enumerate(spikeTimes):
                 # insert the firing rate for each neuron, for each time step, for each trial
-                ps_FR[trl_n, step_n, i] = smoothingFcn(step - singleUnitSpikeTimes)
+                ps_FR[trl_n, step_n, i] = smoothingFcn(singleUnitSpikeTimes - step)
     return ps_FR, ps_T
 
 

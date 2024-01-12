@@ -13,3 +13,10 @@ def rectangular(x, center=0.0, width=1.0):
     return np.logical_and(
         np.greater_equal(x - center, -width / 2),
         np.less(x - center, width / 2))
+
+
+@nb.jit(nopython=True)
+def triangular(x, center=0.0, width=1.0):
+    slope = -2 / (width / 2)
+    dom_f = (a := x - center)[abs(a) <= (width / 2)]
+    return 2 + (slope * abs(dom_f))

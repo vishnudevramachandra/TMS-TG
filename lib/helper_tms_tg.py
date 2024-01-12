@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
 import re
-from collections.abc import Iterator
 from functools import lru_cache, wraps
 from lib.constants import COLS_WITH_STRINGS
 import scipy
+import warnings
+from typing import Optional, Any
 
 
 class AnalysisParams(object):
@@ -15,7 +16,7 @@ class AnalysisParams(object):
     def __init__(self, params):
         self.__set__(self, params)
 
-    def __set__(self, obj, params):
+    def __set__(self, obj: 'TMSTG', params):
         if self == obj:
             self.analysis_params = params
 
@@ -114,10 +115,9 @@ class AnalysisParams(object):
             self.analysis_params = params
 
             # do housekeeping
-            if 'psfr' in obj.__dict__:
-                del obj.psfr
             if 'psts' in obj.__dict__:
                 del obj.psts
+            obj.compute_firingrate.cache_clear()
             obj.filter_blocks = None
             _, _ = obj.filter_blocks
 
@@ -125,20 +125,12 @@ class AnalysisParams(object):
         return self.analysis_params
 
 
-def _get_trigger_times_for_current_block(trigParams, matdatum, blockinfo):
-    if 'TMS' in trigParams.keys():
+def _get_trigger_times_for_current_block(trigType, matdatum, blockinfo):
+    if trigType == 'TMS':
         trigger = _read_trigger(matdatum)
         return trigger[blockinfo['TrigStartIdx'] + np.array(range(blockinfo['no. of Trigs']))]
     else:
         ...  # TODO: random trigger implementation
-
-
-def _compute_timeIntervals(trigger, startT, endT):
-    return trigger[:, np.newaxis] + np.array([startT, endT])
-
-
-def _compute_timeIntervals_baseline(trigger, startT, endT):
-    return trigger[:, np.newaxis] + np.array([(startT + endT) / 2, endT]), endT - startT
 
 
 @lru_cache(maxsize=None)
@@ -158,7 +150,7 @@ def _check_trigger_numbers(matdata, blocksinfo) -> None:
 
 
 @lru_cache(maxsize=None)
-def _read_MSO(matdatum):
+def _read_MSO(matdatum) -> np.ndarray:
     refs = matdatum['blockInfo/MSO'].flatten()
     mso = [matdatum[i].flatten().tobytes().decode('utf-16') for i in refs]
     return np.array(
@@ -168,6 +160,15 @@ def _read_MSO(matdatum):
 def _check_mso_order(matdata, blocksinfo) -> None:
     epochIndices = blocksinfo.index.unique().to_numpy()
     for epochIndex in epochIndices:
+        if any([re.search(r'/', item) for item in
+                [matdata[epochIndex][ref].flatten().tobytes().decode('utf-16')
+                 for ref in matdata[epochIndex]['blockInfo/MSO'].flatten()]]):
+            warnings.warn(f'Cannot check the MSO order in blocksinfo for epoch {epochIndex} using mat-data information.'
+                          f' Hence, using the MSO order in blocksinfo as it is; keep in mind that the source of this '
+                          f'MSO order contained in infofile has to match the true recording MSO order, otherwise wrong '
+                          f'MSO will be associated to epochs [Katastrophe].')
+            continue
+
         mso = _read_MSO(matdata[epochIndex])
         nonZeroMSOindices = blocksinfo.loc[epochIndex, 'MSO '].to_numpy() != 0
         try:
@@ -178,20 +179,64 @@ def _check_mso_order(matdata, blocksinfo) -> None:
             refs = matdata[epochIndex]['CombiMCD_fnames'].flatten()
             combiMCDFnames = pd.Series([matdata[epochIndex][i].flatten().tobytes().decode('utf-16') for i in refs])
             fnames = combiMCDFnames.str.rsplit(pat='\\', n=1, expand=True)[1]
-            assert all(fnames.values == blocksinfo.loc[epochIndex, 'Filename'].values), \
-                f'mso order in epoch {epochIndex} differs from mat-data'
+            if not all(fnames.values == blocksinfo.loc[epochIndex, 'Filename'].values):
+                warnings.warn(f'MSO order in blocksinfo for epoch {epochIndex} differs from mat-data.'
+                              f'Hence, the order in blocksinfo is being changed to match mat-data')
+                index = list()
+                for row in blocksinfo.loc[epochIndex, 'Filename']:
+                    index.append(np.argwhere(fnames.str.fullmatch(row)).item())
+                assert len(index) == len(blocksinfo.loc[epochIndex, 'Filename']), \
+                    f'The filenames in blocksinfo for epoch {epochIndex} do not match combiMCDFnames'
+                tmp = blocksinfo.loc[epochIndex, :].copy()
+                blocksinfo.loc[epochIndex, :].iloc[index, :] = tmp
+                blocksinfo.drop(columns='TrigStartIdx', inplace=True)
+                _concat_blocksinfo(blocksinfo, 'TrigStartIdx')
+
+
+def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[Any] = None) -> None:
+    """
+    Adds a new column to passed DataFrame
+
+    Parameters
+    ----------
+    blocksinfo:  [DataFrame] if the 'value' parameter is equal to None, then
+                 this has to be MultiIndex-ed DataFrame containing block information
+    colName:     name for the newly added column
+    value:       [Optional] all rows of the newly added column are set to this value
+
+    Returns
+    -------
+    DataFrame with an added column
+    """
+
+    if colName not in blocksinfo.columns:
+
+        if value is not None:
+            blocksinfo[colName] = value
+
+        else:
+            match colName:
+                case 'TrigStartIdx':
+                    blocksinfo['TrigStartIdx'] = 0
+                    epochIndices = blocksinfo.index.unique().to_numpy()
+                    for epochIndex in epochIndices:
+                        num_of_trigs = blocksinfo.loc[epochIndex, 'no. of Trigs'].to_numpy()
+                        blocksinfo.loc[epochIndex, 'TrigStartIdx'] = np.append(0, num_of_trigs.cumsum()[:-1])
+                case _:
+                    print(f'Not implemented : Adding column with title "{colName}" without '
+                          f'a given value')
 
 
 class LateComponent(object):
     """
     Class dealing with analysis of late activity
     """
-    _methodsForComputingDelay = {'baseline_crossing', 'starting_point_derived_from_slope', 'peak_as_delay'}
-    _defaultCondForComputingDelay = 'starting_point_derived_from_slope'
+    _methodsForComputingDelay = {'threshold_crossing', 'starting_point_derived_from_slope', 'peak_as_delay'}
+    _defaultMethodForComputingDelay = 'starting_point_derived_from_slope'
     earlyLateSeparationTimePoint = 5  # in msecs
 
     def __init__(self, method=None):
-        self.delayMethod = LateComponent._defaultCondForComputingDelay if method is None else method
+        self.delayMethod = LateComponent._defaultMethodForComputingDelay if method is None else method
 
     @property
     def delayMethod(self):
@@ -204,7 +249,7 @@ class LateComponent(object):
         elif hasattr(self, '_delayMethod'):
             print('wrong method passed for computing delay, reverting to previous method')
         else:
-            self._delayMethod = LateComponent._defaultCondForComputingDelay
+            self._delayMethod = LateComponent._defaultMethodForComputingDelay
             print('wrong method passed during initiation, using default condition for computing delay')
         print(f'Method for computing delay set to: {self._delayMethod}')
 
@@ -217,7 +262,7 @@ class LateComponent(object):
         meanPSFR        :  average peristimulus activity; array[Time X N]
         ps_T            :  Time points of peristimulus activity; array[1D]
         meanBaselineFR  :  baseline firing rate; array[1 X N]
-        minPeakWidth    :  mid-time point of baseline firing rate; array[1D]
+        minPeakWidth    :  (ms); the cutoff criteria for selecting the peaks
 
         Returns
         -------
@@ -225,7 +270,7 @@ class LateComponent(object):
         """
         match self.delayMethod:
             case 'baseline_crossing':
-                fcn = self.baseline_crossing
+                fcn = self.threshold_crossing
             case 'starting_point_derived_from_slope':
                 fcn = self.starting_point_derived_from_slope
             case 'peak_as_delay':
@@ -248,6 +293,8 @@ class LateComponent(object):
                                                minPeakHeight,
                                                minPeakWidth,
                                                earlyLateSeparationIdx))
+            else:
+                delays = np.append(delays, np.nan)
         return delays
 
     @staticmethod
@@ -260,16 +307,16 @@ class LateComponent(object):
                 case 'starting_point_derived_from_slope':
                     return fcn(*args)
                 case 'peak_as_delay':
-                    return fcn(*args[:4], *args[5:])
+                    return fcn(*args[:3])
 
         return arg_filter
 
     @staticmethod
     @delay_deco
-    def baseline_crossing(peakIdx, dt, offset, waveform, baselineFR):
+    def threshold_crossing(peakIdx, dt, offset, waveform, baselineFR):
         if baselineFR > 0:
             return np.max(np.argwhere(waveform[:peakIdx] <= 1.5 * baselineFR), initial=0) * dt + offset
-        assert offset < 0, ('psfr does not have pre-stimulus activity, '
+        assert offset < 0, ('computed peristimulus firing does not have pre-stimulus activity, '
                             'hence cannot compute baseline_crossing for zero-valued baselineFR')
         baselineFR = waveform[:int(dt * -offset)].mean()
         return np.max(np.argwhere(waveform[:peakIdx] <= 1.5 * baselineFR), initial=0) * dt + offset
@@ -285,16 +332,12 @@ class LateComponent(object):
             peakIdx = shadowPeak
         inflectionIdx = peaks[np.argwhere(peaks < peakIdx)].max()
         return (offset
-                + ((inflectionIdx + 0.5) * dt)
-                - ((waveform[inflectionIdx:inflectionIdx + 2].mean() - baselineFR) / df1[inflectionIdx]) * dt)
+                + (inflectionIdx + 0.5 -
+                   ((waveform[inflectionIdx:inflectionIdx + 2].mean() - baselineFR) / df1[inflectionIdx])) * dt)
 
     @staticmethod
     @delay_deco
-    def peak_as_delay(peakIdx, dt, offset, waveform, minPeakHeight, minPeakWidth, earlyLateSeparationIdx):
-        shadowPeak = find_shadowPeak(
-            peakIdx, dt, waveform, minPeakWidth, scipy.signal.find_peaks(-np.diff(waveform, n=1))[0])
-        if shadowPeak >= earlyLateSeparationIdx and waveform[shadowPeak] > minPeakHeight:
-            peakIdx = shadowPeak
+    def peak_as_delay(peakIdx, dt, offset):
         return (peakIdx * dt) + offset
 
 
