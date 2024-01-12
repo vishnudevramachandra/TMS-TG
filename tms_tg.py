@@ -4,9 +4,10 @@ import pandas as pd
 from statistics import mean, mode
 import os
 import re
-from typing import Optional, Any
+from typing import Optional
 from itertools import zip_longest
 from functools import lru_cache, cached_property
+import scipy
 
 import lib.matpy as mp
 import lib.helper_tms_tg as th
@@ -15,7 +16,7 @@ from lib.dataanalysis import peristim_firingrate, peristim_timestamp
 
 
 def _filter_blocks_helper(
-        blocksinfo, analysis_params, boolIndex=None) -> tuple[pd.DataFrame, pd.Series]:
+        blocksinfo, analysis_params, activeNeu=None) -> tuple[pd.DataFrame, pd.Series]:
     """
     Filters MultiIndex-ed blocksinfo<DataFrame> using 'selectionParams' in analysis_params
 
@@ -23,7 +24,7 @@ def _filter_blocks_helper(
     ----------
     blocksinfo:          MultiIndex-ed DataFrame containing block information.
     analysis_params:    Dict with parameters for filtering blocksinfo
-    boolIndex:          [Optional] MultiIndex-ed Series of boolean array
+    activeNeu:          [Optional] MultiIndex-ed Series of boolean array
 
     Returns
     -------
@@ -31,14 +32,17 @@ def _filter_blocks_helper(
 
     """
     # initialize boolArray[True] for selecting (booleanIndexing) blocks using criterion in ['selectionParams']
-    if boolIndex is None:
-        boolIndex = blocksinfo['MSO '] == blocksinfo['MSO ']
+    if activeNeu is None:
+        activeNeu = blocksinfo['MSO '] == blocksinfo['MSO ']
 
     # change the truth values of Index by doing string comparison on dataframe.Index
     epochIndices = blocksinfo.index.to_frame()
     for item in EPOCHISOLATORS:
         if (strings := analysis_params['selectionParams']['Epoch'][item]) is not None:
-            boolIndex &= epochIndices[item].str.contains('|'.join(strings))
+            if isinstance(strings, tuple):
+                activeNeu &= epochIndices[item].str.contains('|'.join(strings))
+            else:
+                activeNeu &= epochIndices[item].str.contains(strings)
 
     # change the truth values of Index by doing floating point comparison on dataframe columns
     selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_FLOATS
@@ -46,27 +50,30 @@ def _filter_blocks_helper(
         string = analysis_params['selectionParams'][col]
         if re.match('<=', string):
             val = re.sub('<=', '', string)
-            boolIndex &= blocksinfo[col] <= np.float_(val)
+            activeNeu &= blocksinfo[col] <= np.float_(val)
         elif re.match('<', string):
             val = re.sub('<', '', string)
-            boolIndex &= blocksinfo[col] < np.float_(val)
+            activeNeu &= blocksinfo[col] < np.float_(val)
         elif re.match('>=', string):
             val = re.sub('>=', '', string)
-            boolIndex &= blocksinfo[col] >= np.float_(val)
+            activeNeu &= blocksinfo[col] >= np.float_(val)
         elif re.match('>', string):
             val = re.sub('>', '', string)
-            boolIndex &= blocksinfo[col] > np.float_(val)
+            activeNeu &= blocksinfo[col] > np.float_(val)
         elif re.match('==', string):
             val = re.sub('==', '', string)
-            boolIndex &= blocksinfo[col] == np.float_(val)
+            activeNeu &= blocksinfo[col] == np.float_(val)
 
     # change the truth values of Index by doing string comparison on dataframe columns
     selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_STRINGS
     for col in selectCols:
         strings = analysis_params['selectionParams'][col]
-        boolIndex &= blocksinfo[col].str.contains('|'.join(strings))
+        if isinstance(strings, tuple):
+            activeNeu &= blocksinfo[col].str.contains('|'.join(strings))
+        else:
+            activeNeu &= blocksinfo[col].str.contains(strings)
 
-    return blocksinfo.loc[boolIndex, :], boolIndex
+    return blocksinfo.loc[activeNeu, :], activeNeu
 
 
 class FilterBlocks(object):
@@ -79,20 +86,20 @@ class FilterBlocks(object):
 
     def __get__(self, obj, objType):
         if self.cache is None:
-            self.cache = _filter_blocks_helper(obj.blocksinfo, obj.analysis_params, boolIndex=None)
+            self.cache = _filter_blocks_helper(obj.blocksinfo, obj.analysis_params, activeNeu=None)
         return self.cache[0], self.cache[1]
 
     def __set__(self, obj, value):
         self.cache = value
 
-    def __call__(self, blocksinfo, analysis_params, boolIndex=None):
-        return _filter_blocks_helper(blocksinfo, analysis_params, boolIndex)
+    def __call__(self, blocksinfo, analysis_params, activeNeu=None):
+        return _filter_blocks_helper(blocksinfo, analysis_params, activeNeu)
 
 
 class TMSTG(object):
     """TMSTG
 
-    Enables easy access to data contained in h5py group object
+    Enables easy access to data contained in h5py group object and importantly eases analysis on that data
 
     Parameters
     ----------
@@ -118,7 +125,7 @@ class TMSTG(object):
         'TMSArtifactParams': {'timeWin': (-0.3, 0.5)},
         'peristimParams': {'smoothingParams': {'win': 'gaussian', 'width': 1.5, 'overlap': 1 / 3},
                            'timeWin': (-20.0, 100.0),
-                           'trigger': {'TMS': None},
+                           'trigger': 'TMS',
                            'baselinetimeWin': (-50.0, -1.0)}}
 
     analysis_params = th.AnalysisParams(_default_analysis_params)
@@ -155,9 +162,9 @@ class TMSTG(object):
             if len(animalInfofilePath) > 0:
                 blocksinfo = pd.read_excel(animalInfofilePath[0]).drop(
                     columns=['Unnamed: 11', 'Queries'], errors='ignore').dropna(axis=0, how='all')
-                cls._concat_blocksinfo(blocksinfo, 'Animal', str(groupinfo.loc[i, 'Animal']))
-                blocksinfo = cls.do_multi_indexing(blocksinfo)
-                cls._concat_blocksinfo(blocksinfo, 'TrigStartIdx')
+                th._concat_blocksinfo(blocksinfo, 'Animal', str(groupinfo.loc[i, 'Animal']))
+                blocksinfo = cls.do_multi_indexing(blocksinfo, animalMatlabfnames)
+                th._concat_blocksinfo(blocksinfo, 'TrigStartIdx')
                 cls._sort_filelist(animalMatlabfnames, blocksinfo)
                 groupMatlabfnames = pd.concat([groupMatlabfnames, animalMatlabfnames], ignore_index=True)
                 groupBlocksinfo = pd.concat([groupBlocksinfo, blocksinfo])
@@ -185,87 +192,48 @@ class TMSTG(object):
         for epochIndex, blockinfo in selectBlocks.iterrows():
             selectTrigger = th._get_trigger_times_for_current_block(
                 self.analysis_params['peristimParams']['trigger'], self.matdata[epochIndex], blockinfo)
-            timeIntervals = th._compute_timeIntervals(
-                selectTrigger, *self.analysis_params['peristimParams']['timeWin'])
+            timeIntervals = selectTrigger[:, np.newaxis] + np.array(self.analysis_params['peristimParams']['timeWin'])
             psTS.append(peristim_timestamp(self.singleUnitsSpikeTimes(epochIndex), timeIntervals))
 
         return psTS
 
-    @cached_property
-    def psfr(self) -> tuple[list, np.ndarray, list, np.ndarray]:
+    @lru_cache(maxsize=None)
+    def compute_firingrate(self,
+                           smoothingWinType,
+                           smoothingWinWidth,
+                           smoothingWinOverlap,
+                           timeWinLeftEndpoint,
+                           timeWinRightEndpoint,
+                           triggerType) -> tuple[list[np.ndarray], np.ndarray]:
         """
         Compute peri-stimulus firing rate
 
         Returns
         -------
-        tuple of Lists; list of peri-stimulus firing rate, its timing,
-        list of baseline firing rate, its timing for each block
-
+        tuple having list of peri-stimulus firing rate and a 1-D array of its timing
         """
-        print('psfr runs...........')
+
+        print('compute_firingrate runs...........')
         th._check_trigger_numbers(self.matdata, self.blocksinfo)
         th._check_mso_order(self.matdata, self.blocksinfo)
         selectBlocks, selectBlocksIdx = self.filter_blocks
 
-        ps_FR, ps_baseline_FR = list(), list()
-        ps_T, ps_baseline_T = np.array([]), np.array([])
+        ps_FR, ps_T = list(), np.array([])
         for epochIndex, blockinfo in selectBlocks.iterrows():
-            selectTrigger = th._get_trigger_times_for_current_block(
-                self.analysis_params['peristimParams']['trigger'], self.matdata[epochIndex], blockinfo)
-
-            timeIntervals = th._compute_timeIntervals(
-                selectTrigger, *self.analysis_params['peristimParams']['timeWin'])
+            selectTrigger = th._get_trigger_times_for_current_block(triggerType,
+                                                                    self.matdata[epochIndex], blockinfo)
+            timeIntervals = selectTrigger[:, np.newaxis] + np.array([timeWinLeftEndpoint, timeWinRightEndpoint])
             tmp_ps_FR, ps_T = peristim_firingrate(self.singleUnitsSpikeTimes(epochIndex),
                                                   timeIntervals,
-                                                  self.analysis_params['peristimParams']['smoothingParams'])
+                                                  {'win': smoothingWinType,
+                                                   'width': smoothingWinWidth,
+                                                   'overlap': smoothingWinOverlap})
             ps_FR.append(tmp_ps_FR)
 
-            timeIntervals_baseline, baselineWinWidth = th._compute_timeIntervals_baseline(
-                selectTrigger, *self.analysis_params['peristimParams']['baselinetimeWin'])
-            tmp_ps_FR, ps_baseline_T \
-                = peristim_firingrate(self.singleUnitsSpikeTimes(epochIndex),
-                                      timeIntervals_baseline,
-                                      {'win': 'rect', 'width': baselineWinWidth, 'overlap': 0.0})
-            ps_baseline_FR.append(tmp_ps_FR)
-
-        return ps_FR, ps_T, ps_baseline_FR, ps_baseline_T
+        return ps_FR, ps_T
 
     @staticmethod
-    def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[Any] = None) -> None:
-        """
-        Adds a new column to passed DataFrame
-
-        Parameters
-        ----------
-        blocksinfo:  [DataFrame] if the 'value' parameter is equal to None, then
-                     this has to be MultiIndex-ed DataFrame containing block information
-        colName:     name for the newly added column
-        value:       [Optional] all rows of the newly added column are set to this value
-
-        Returns
-        -------
-        DataFrame with an added column
-        """
-
-        if colName not in blocksinfo.columns:
-
-            if value is not None:
-                blocksinfo[colName] = value
-
-            else:
-                match colName:
-                    case 'TrigStartIdx':
-                        blocksinfo['TrigStartIdx'] = 0
-                        epochIndices = blocksinfo.index.unique().to_numpy()
-                        for epochIndex in epochIndices:
-                            num_of_trigs = blocksinfo.loc[epochIndex, 'no. of Trigs'].to_numpy()
-                            blocksinfo.loc[epochIndex, 'TrigStartIdx'] = np.append(0, num_of_trigs.cumsum()[:-1])
-                    case _:
-                        print(f'Not implemented : Adding column with title "{colName}" without '
-                              f'a given value')
-
-    @staticmethod
-    def do_multi_indexing(blocksinfo: pd.DataFrame) -> pd.DataFrame:
+    def do_multi_indexing(blocksinfo: pd.DataFrame, matlabfnames: pd.Series) -> pd.DataFrame:
         """
         Multi-indexes the passed in DataFrame
 
@@ -279,24 +247,45 @@ class TMSTG(object):
         """
         df = blocksinfo.copy()
         df.loc[:, 'Depth'] = df['Depth'].str.removesuffix('µm')
+        df.loc[:, 'Depth'] = df['Depth'].str.removesuffix('μm')
         df['Depth_int'] = np.int_(df.loc[:, 'Depth'].to_list())
         df['no. of Trigs'] = np.int_(df.loc[:, 'no. of Trigs'].to_list())
 
         for key in REGIONS:
             df.loc[df['RecArea '].str.contains('|'.join(REGIONS[key])), EPOCHISOLATORS[1]] = key
+        recRegions = df.loc[:, EPOCHISOLATORS[1]].unique()
 
-        for key in LAYERS:
-            df.loc[(LAYERS[key][0] <= df['Depth_int'])
-                   & (df['Depth_int'] < LAYERS[key][1]), EPOCHISOLATORS[2]] \
-                = key
+        df.loc[:, EPOCHISOLATORS[2]] = np.nan
+        corticalRegions = set(recRegions) & set(LAYERS.keys())
+        for cRegion in corticalRegions:
+            for key in LAYERS[cRegion]:
+                df.loc[(LAYERS[cRegion][key][0] <= df['Depth_int'])
+                       & (df['Depth_int'] < LAYERS[cRegion][key][1])
+                       & df['Region'].str.contains(cRegion), EPOCHISOLATORS[2]] \
+                    = key
+
         if not df['StimHem'].isna().all():
             df.loc[df['StimHem'] == df['RecHem'], EPOCHISOLATORS[3]] = 'same'
             df.loc[df['StimHem'] != df['RecHem'], EPOCHISOLATORS[3]] = 'opposite'
         else:
             df.loc[:, EPOCHISOLATORS[3]] = np.nan
 
-        df.loc[df['Filename'].str.contains('con'), EPOCHISOLATORS[4]] = 'contra'
-        df.loc[df['Filename'].str.contains('ips'), EPOCHISOLATORS[4]] = 'ipsi'
+        try:
+            if all(map(lambda x: isinstance(x, str), df['Filename'])):
+                df.loc[df['Filename'].str.contains('con'), EPOCHISOLATORS[4]] = 'contra'
+                df.loc[df['Filename'].str.contains('ips'), EPOCHISOLATORS[4]] = 'ipsi'
+            elif df['Filename'].isna().all():
+                df.loc[:, EPOCHISOLATORS[4]] = np.nan
+            else:
+                raise ValueError
+        except ValueError:
+            print(f'The infofile column \'Filename\' cannot be half empty, '
+                  f'which is the case for animal {df["Animal"][0]}')
+
+        if not (matlabfnames.str.contains('|'.join(('same', 'opposite')))
+                | matlabfnames.str.contains('|'.join(('con', 'ips')))).any():
+            df.loc[:, 'Movement'] = df.loc[:, 'Mov'].copy()
+            df.loc[:, EPOCHISOLATORS[3:5]] = np.nan
 
         df.fillna('none', inplace=True)
         df.set_index(EPOCHISOLATORS, inplace=True)
@@ -326,19 +315,68 @@ class TMSTG(object):
         list of arrays[[1 X N], ]           - baseline firing rate,
         array[1D]                           - mid-time point of baseline firing rate
         """
-
-        ps_FR, ps_T, ps_baseline_FR, ps_baseline_T = self.psfr
+        # noinspection DuplicatedCode
+        ps_FR, ps_T = self.compute_firingrate(*self.analysis_params['peristimParams']['smoothingParams'].values(),
+                                              *self.analysis_params['peristimParams']['timeWin'],
+                                              self.analysis_params['peristimParams']['trigger'])
+        ps_baseline_FR, ps_baseline_T = (
+            self.compute_firingrate('rectangular',
+                                    np.diff(self.analysis_params['peristimParams']['baselinetimeWin']).item(0),
+                                    0.0,
+                                    mean(self.analysis_params['peristimParams']['baselinetimeWin']),
+                                    self.analysis_params['peristimParams']['baselinetimeWin'][1],
+                                    self.analysis_params['peristimParams']['trigger']))
 
         if squeezeDim:
             return np.asfortranarray(np.concatenate([block_psfr.mean(axis=0) for block_psfr in ps_FR], axis=1)), \
-                ps_T + tms.analysis_params['peristimParams']['timeWin'][0], \
+                ps_T + self.analysis_params['peristimParams']['timeWin'][0], \
                 np.concatenate([block_bsfr.mean(axis=0) for block_bsfr in ps_baseline_FR], axis=1), \
-                ps_baseline_T + mean(tms.analysis_params['peristimParams']['baselinetimeWin'])
+                ps_baseline_T + mean(self.analysis_params['peristimParams']['baselinetimeWin'])
         else:
             return [block_psfr.mean(axis=0, keepdims=True) for block_psfr in ps_FR], \
-                ps_T + tms.analysis_params['peristimParams']['timeWin'][0], \
+                ps_T + self.analysis_params['peristimParams']['timeWin'][0], \
                 [block_bsfr.mean(axis=0, keepdims=True) for block_bsfr in ps_baseline_FR], \
-                ps_baseline_T + mean(tms.analysis_params['peristimParams']['baselinetimeWin'])
+                ps_baseline_T + mean(self.analysis_params['peristimParams']['baselinetimeWin'])
+
+    def stats_is_signf_active(self,
+                              ps_FR: Optional[list[np.ndarray]] = None,
+                              ps_baseline_FR: Optional[np.ndarray] = None) -> list[np.ndarray[bool]]:
+
+        if ps_FR is None and ps_baseline_FR is None:
+            ps_FR, _ = self.compute_firingrate('rectangular',
+                                               49.0,
+                                               0.0,
+                                               25.5,
+                                               50.0,
+                                               self.analysis_params['peristimParams']['trigger'])
+            ps_baseline_FR, _ = self.compute_firingrate('rectangular',
+                                                        49.0,
+                                                        0.0,
+                                                        -25.5,
+                                                        -1,
+                                                        self.analysis_params['peristimParams']['trigger'])
+            selectBlocksinfo, selectBlocksinfoIdx = self.filter_blocks
+            mtCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==1'}}
+            fb = FilterBlocks()
+            _, mtIdx = fb(selectBlocksinfo, mtCond)
+
+            epochs = selectBlocksinfo.index.unique()
+            activeNeu = pd.Series(np.empty(shape=epochs.shape), index=epochs)
+            for epoch in epochs:
+                indices = np.where((selectBlocksinfo.index == epoch) & mtIdx.to_numpy())[0]
+                if len(indices) > 0:
+                    postStimFR = ps_FR[indices[0]]
+                    baselineFR = ps_baseline_FR[indices[0]]
+                    for index in indices[1:]:
+                        postStimFR = np.append(postStimFR, ps_FR[index], axis=0)
+                        baselineFR = np.append(baselineFR, ps_baseline_FR[index], axis=0)
+                    activeNeu[epoch] = np.ravel(scipy.stats.ttest_ind(
+                        postStimFR, baselineFR, axis=0, alternative='greater').pvalue < 0.05)
+                else:
+                    indices = np.where(selectBlocksinfo.index == epoch)[0]
+                    activeNeu[epoch] = np.repeat(False, ps_FR[indices[0]].shape[2], axis=0)
+
+        return activeNeu
 
     @lru_cache(maxsize=None)
     def singleUnitsSpikeTimes(self, epochIndex) -> 'nb.typed.List':
@@ -366,21 +404,21 @@ class TMSTG(object):
 
         def lookfor_matching_fname(boolArray, *string) -> pd.Series:
 
-            if (boolArray & matlabfnames.str.contains(string[0])).any() & (len(string) > 1):
-                boolArray &= matlabfnames.str.contains(string[0])
+            if (boolArray & matlabfnames.str.contains(string[0], case=False)).any() & (len(string) > 1):
+                boolArray &= matlabfnames.str.contains(string[0], case=False)
                 return lookfor_matching_fname(boolArray, *string[1:])
-            elif (not (boolArray & matlabfnames.str.contains(string[0])).any()) & (len(string) > 1):
+            elif (not (boolArray & matlabfnames.str.contains(string[0], case=False)).any()) & (len(string) > 1):
                 return lookfor_matching_fname(boolArray, *string[1:])
-            elif (boolArray & matlabfnames.str.contains(string[0])).any() & (len(string) == 1):
-                return boolArray & matlabfnames.str.contains(string[0])
+            elif (boolArray & matlabfnames.str.contains('_' + string[0])).any() & (len(string) == 1):
+                return boolArray & matlabfnames.str.contains('_' + string[0])
             else:
                 return boolArray
 
         # Use MultiIndexes of blocksinfo to set the file order
         epochIndices = blocksinfo.index.unique().to_numpy()
         for i, epochIndex in enumerate(epochIndices):
-            boolIndex = lookfor_matching_fname(np.ones(len(matlabfnames), dtype=bool), *epochIndex)
-            j = boolIndex.array.argmax()
+            matchBoolArray = lookfor_matching_fname(np.ones(len(matlabfnames), dtype=bool), *epochIndex)
+            j = matchBoolArray.array.argmax()
             matlabfnames.iloc[[i, j]] = matlabfnames.iloc[[j, i]]
 
         pass
@@ -412,7 +450,7 @@ class TMSTG(object):
             if len(ampTrigger) > len(trigger):
                 # take care of wrong ampTriggers
                 ampTrigger = ampTrigger.reshape((ampTrigger.size // 2, 2))
-                cond = mode(np.diff(ampTrigger, axis=1))
+                cond = mode(np.diff(ampTrigger, axis=1)[0])
                 i = 0
                 while i < ampTrigger.shape[0]:
                     if (ampTrigger[i, 1] - ampTrigger[i, 0]) < (cond - 0.1):
@@ -450,17 +488,21 @@ if __name__ == '__main__':
     th._check_trigger_numbers(tms.matdata, tms.blocksinfo)
     th._check_mso_order(tms.matdata, tms.blocksinfo)
 
-    # tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'MC',
-    #                                                      'Layer': 'L23'},
-    #                                            'MT': '>=1'}}
+    tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'MC',
+                                                         'Layer': 'L5'},
+                                               'MT': '>=0.9'}}
 
-    tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'thal'},
-                                               'MT': '>=1.2',
-                                               'RecArea ': ('VPM', 'PO')}}
+    # tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'thal'},
+    #                                            'MT': '>=1.2',
+    #                                            'RecArea ': ('VPM', 'PO', 'VM', 'VPL')}}
 
     meanPSFR, t, meanBaselineFR, _ = tms.avg_FR_per_neuron()
-    delays = tms.late_comp.compute_delay(meanPSFR,
+    activeNeu = tms.stats_is_signf_active()
+    selectBlocks, selectBlocksIdx = tms.filter_blocks
+    flat_activeNeu = np.empty(shape=0, dtype=bool)
+    [flat_activeNeu := np.append(flat_activeNeu, activeNeu[item]) for item in selectBlocks.index]
+    delays = tms.late_comp.compute_delay(meanPSFR[:, flat_activeNeu],
                                          t,
-                                         meanPSFR[t < 0, :].max(axis=0, keepdims=True),
+                                         meanPSFR[t < 0, :].max(axis=0, keepdims=True)[:, flat_activeNeu],
                                          tms.analysis_params['peristimParams']['smoothingParams']['width'] + 0.25)
     delays

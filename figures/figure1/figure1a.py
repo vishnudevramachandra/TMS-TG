@@ -2,33 +2,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numba as nb
 import copy
+from statistics import mean
 
-from tms_tg import TMSTG, FilterBlocks, EPOCHISOLATORS
+from tms_tg import TMSTG, EPOCHISOLATORS
 from cachetools import cached
 from cachetools.keys import hashkey
 from itertools import zip_longest
-
-
-def adjust_xlim(ax, xlim):
-    for axes in np.nditer(ax, flags=['refs_ok']):
-        axes.item().set_xlim(xlim)
-
-
-def colName_from_dict(colName, params):
-    for key in params:
-        if type(params[key]) == dict:
-            colName = colName_from_dict(colName, params[key])
-        elif params[key] is not None:
-            colName += params[key] + '/'
-    return colName
-
-
-def ascertain_colName_from_colParams(colParams):
-    if colParams is None:
-        colName = 'All'
-    else:
-        colName = colName_from_dict('', colParams)
-    return colName
+from figures.helper_figs import (adjust_xlim, ascertain_colName_from_colParams, normalize_psfr, selectNeuron, fb,
+                                 plot_MeanAndSEM, plot_populationAvgFR)
 
 
 @cached(cache={}, key=lambda tms, uniqueEpochs: hashkey(uniqueEpochs))
@@ -38,42 +19,7 @@ def compute_raster(tms, uniqueEpochs):
 
 @cached(cache={}, key=lambda tms, uniqueEpochs: hashkey(uniqueEpochs))
 def compute_psfr(tms, uniqueEpochs):
-    return tms.psfr
-
-
-def normalize_psfr(tms, fb, ps_T, ps_FR, blocksInfo):
-    LATE_COMP_TIMEWIN = (10, 50)
-    PARAMS = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==1'}}
-    _, mtBlocksIdx = fb(blocksInfo, PARAMS)
-    ps_T = ps_T + tms.analysis_params['peristimParams']['timeWin'][0]
-    normalizedPSFR = [None] * len(ps_FR)
-
-    for epochIndex in blocksInfo.index.unique():
-        boolEpochIndex = blocksInfo.index == epochIndex
-
-        # take PSFR at motor threshold
-        mtIndices = np.where(boolEpochIndex & mtBlocksIdx.to_numpy())[0]
-        mtPSFR = ps_FR[mtIndices[0]]
-        for index in mtIndices[1:]:
-            mtPSFR = np.append(mtPSFR, ps_FR[index], axis=0)
-        avg_mtPSFR = mtPSFR.mean(axis=0, keepdims=True)
-        peakFR_latecomp = avg_mtPSFR[:,
-                        (LATE_COMP_TIMEWIN[0] <= ps_T) & (ps_T < LATE_COMP_TIMEWIN[1]),
-                        :].max(axis=1, keepdims=True)
-
-        # take the peak firing rate of the late component for PSFR at motor threshold and do the normalization
-        for i in np.where(boolEpochIndex)[0]:
-            normalizedPSFR[i] = ps_FR[i] / peakFR_latecomp
-
-    return normalizedPSFR
-
-
-def selectNeuron(ps_TS):
-    num_of_neurons = [len(item) for item in ps_TS]
-    num_of_spikes = np.array([sum([len(row) for row in neuron])
-                              for item in ps_TS for neuron in item]).reshape(len(ps_TS),
-                                                                             sum(num_of_neurons) // len(ps_TS))
-    return np.random.choice(np.flatnonzero(num_of_spikes.sum(axis=0)))
+    return tms.compute_firingrate
 
 
 def make_subplots(colParams, rasterOnly, rasterAndPsfr, rasterAndPopulationAvgFR):
@@ -93,38 +39,51 @@ def plot(tms, colParams=None, rasterOnly=False, rasterAndPsfr=False, rasterAndPo
     zeroMTCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==0'}}
     plt.style.use('default')
     colorsPlt = ('C0', 'C1', 'C2')
-    fb = FilterBlocks()
 
     if rasterOnly or rasterAndPsfr or rasterAndPopulationAvgFR:
         fig, ax = make_subplots(colParams, rasterOnly, rasterAndPsfr, rasterAndPopulationAvgFR)
         epochNumsAndNeuronNums_perCol = list()
 
-        for j in range(len(colParams)):
-            colName = ascertain_colName_from_colParams(colParams[j])
-            tms.analysis_params = copy.deepcopy(colParams[j])
+        for colIdx in range(len(colParams)):
+            colName = ascertain_colName_from_colParams(colParams[colIdx])
+            tms.analysis_params = copy.deepcopy(colParams[colIdx])
             selectBlocksinfo, selectBlocksinfoIdx = tms.filter_blocks
             epochIndices = selectBlocksinfo.index.unique()
 
             if any(selectBlocksinfoIdx):
                 # compute peristimulus timestamps and firing-rates
                 ps_TS = compute_raster(tms, tuple(selectBlocksinfo.index.to_numpy()))
+                activeNeu = tms.stats_is_signf_active()
                 if rasterAndPsfr or rasterAndPopulationAvgFR:
-                    ps_FR, ps_T, ps_baseline_FR, _ = compute_psfr(tms, tuple(selectBlocksinfo.index.to_numpy()))
+                    # ps_FR, ps_T, ps_baseline_FR, _ = compute_psfr(tms, tuple(selectBlocksinfo.index.to_numpy()))
+                    ps_FR, ps_T = tms.compute_firingrate(
+                        *tms.analysis_params['peristimParams']['smoothingParams'].values(),
+                        *tms.analysis_params['peristimParams']['timeWin'],
+                        tms.analysis_params['peristimParams']['trigger'])
+                    ps_baseline_FR, ps_baseline_T = (
+                        tms.compute_firingrate('rectangular',
+                                               np.diff(tms.analysis_params['peristimParams']['baselinetimeWin']).item(
+                                                   0),
+                                               0.0,
+                                               mean(tms.analysis_params['peristimParams']['baselinetimeWin']),
+                                               tms.analysis_params['peristimParams']['baselinetimeWin'][1],
+                                               tms.analysis_params['peristimParams']['trigger']))
                     ps_T_corrected = tms.analysis_params['peristimParams']['timeWin'][0] + ps_T
 
                 # randomly sample an epoch for plotting
                 sampleEpochIndex = epochIndices[np.random.choice(len(epochIndices))]
                 sampleBlocksinfo = selectBlocksinfo.loc[sampleEpochIndex, :]
+                sampleActiveNeu = np.where(activeNeu[sampleEpochIndex])[0]
 
                 # get the index of zeroMT ('MT' == 0) in order to exclude it from further selection (e.g., 'MT' <= 1)
                 _, zeroMTIdx = fb(sampleBlocksinfo, zeroMTCond)
 
                 # select peristimulus timestamps and firing-rates pertaining to sampled epoch
-                indices = np.where(selectBlocksinfo.index == sampleEpochIndex)[0]
-                samplePSTS = [ps_TS[i] for i in indices]
+                blockIndices = np.where(selectBlocksinfo.index == sampleEpochIndex)[0]
+                samplePSTS = [ps_TS[i] for i in blockIndices]
                 if rasterAndPsfr or rasterAndPopulationAvgFR:
-                    samplePSFR = [ps_FR[i] for i in indices]
-                    sampleBaselineFR = [ps_baseline_FR[i] for i in indices]
+                    samplePSFR = [ps_FR[i] for i in blockIndices]
+                    sampleBaselineFR = [ps_baseline_FR[i] for i in blockIndices]
 
                 # statistics
                 epochNumsAndNeuronNums_perCol.append(
@@ -132,57 +91,52 @@ def plot(tms, colParams=None, rasterOnly=False, rasterAndPsfr=False, rasterAndPo
                                          for epochIndex in epochIndices]))
 
                 # randomly select a neuron for plotting raster
-                neuIdx = selectNeuron([samplePSTS[i] for i in np.where(~zeroMTIdx)[0]])
+                neuIdx = selectNeuron(sampleActiveNeu)
 
                 # plot raster
-                ax[0][j].set_title(sampleEpochIndex[0] + '/' + colName + 'Neu-' + str(neuIdx), fontsize=6)
+                ax[0][colIdx].set_title(sampleEpochIndex[0] + '/' + colName + 'Neu-' + str(neuIdx), fontsize=6)
                 for i in range(len(rasterRowConds)):
-                    _, rowSelectBlockIdx = fb(sampleBlocksinfo, rasterRowConds[i], ~zeroMTIdx)
-                    assert sum(rowSelectBlockIdx) >= 1, 'something does not add up'
+                    _, blockIdx = fb(sampleBlocksinfo, rasterRowConds[i], ~zeroMTIdx)
+                    assert sum(blockIdx) >= 1, 'something does not add up'
 
                     # if there are multiple blocks with same rasterRowCond, select the one with maximum no. of Trigs
-                    if sum(rowSelectBlockIdx) > 1:
-                        idx = np.where(rowSelectBlockIdx)[0][
-                            sampleBlocksinfo.loc[rowSelectBlockIdx, 'no. of Trigs'].argmax()]
-                        rowSelectBlockIdx.iloc[np.setdiff1d(np.where(rowSelectBlockIdx)[0], idx)] = False
+                    if sum(blockIdx) > 1:
+                        idx = np.where(blockIdx)[0][
+                            sampleBlocksinfo.loc[blockIdx, 'no. of Trigs'].argmax()]
+                        blockIdx.iloc[np.setdiff1d(np.where(blockIdx)[0], idx)] = False
 
-                    ax[i][j].eventplot([tms.analysis_params['peristimParams']['timeWin'][0] + item
-                                        for item in samplePSTS[np.where(rowSelectBlockIdx)[0][0]][neuIdx]],
-                                       colors=colorsPlt[i])
+                    ax[i][colIdx].eventplot([tms.analysis_params['peristimParams']['timeWin'][0] + item
+                                             for item in samplePSTS[np.where(blockIdx)[0][0]][neuIdx]],
+                                            colors=colorsPlt[i])
+                    if colIdx == 0:
+                        ax[i][colIdx].set_ylabel(
+                            f'MT = {sampleBlocksinfo[blockIdx]["MT"].mean()}\nTrials (N)', fontsize=8)
+
+                rowIdx = len(rasterRowConds)
 
                 # plot PSFR
                 if rasterAndPsfr:
                     for i in range(len(rasterRowConds)):
-                        _, rowSelectBlockIdx = fb(sampleBlocksinfo, rasterRowConds[i], ~zeroMTIdx)
-                        indices = np.where(rowSelectBlockIdx)[0]
-                        selectPSFR = samplePSFR[indices[0]]
-                        for index in indices[1:]:
+                        _, blockIdx = fb(sampleBlocksinfo, rasterRowConds[i], ~zeroMTIdx)
+                        intIndices = np.where(blockIdx)[0]
+                        selectPSFR = samplePSFR[intIndices[0]]
+                        for index in intIndices[1:]:
                             selectPSFR = np.append(selectPSFR, samplePSFR[index], axis=0)
-                        selectPSFR_mean = selectPSFR.mean(axis=0)[:, neuIdx]
-                        selectPSFR_sem = selectPSFR.std(axis=0)[:, neuIdx] / np.sqrt(selectPSFR.shape[0])
-                        ax[3][j].plot(ps_T_corrected, selectPSFR_mean, color=colorsPlt[i])
-                        ax[3][j].fill_between(
-                            ps_T_corrected, selectPSFR_mean - selectPSFR_sem, selectPSFR_mean + selectPSFR_sem,
-                            alpha=0.2, color=colorsPlt[i])
+
+                        plot_MeanAndSEM(selectPSFR.mean(axis=0)[:, neuIdx],
+                                        selectPSFR.std(axis=0)[:, neuIdx] / np.sqrt(selectPSFR.shape[0]),
+                                        ps_T_corrected,
+                                        ax[rowIdx][colIdx],
+                                        colorsPlt[i],
+                                        f'MT = {sampleBlocksinfo[blockIdx]["MT"].mean()}')
+                        if colIdx == 0:
+                            ax[rowIdx][colIdx].set_ylabel('Firing rate (Hz)', fontsize=8)
 
                 # plot population average firing rate
                 if rasterAndPopulationAvgFR:
-                    normalizedPSFR = normalize_psfr(tms, fb, ps_T, ps_FR, selectBlocksinfo)
-                    _, zeroMTIdx = fb(selectBlocksinfo, zeroMTCond)
-                    for i in range(len(rasterRowConds)):
-                        _, rowSelectBlockIdx = fb(selectBlocksinfo, rasterRowConds[i], ~zeroMTIdx)
-                        indices = np.where(rowSelectBlockIdx)[0]
-                        avgNormalizedPSFR = normalizedPSFR[indices[0]].mean(axis=0)
-                        for index in indices[1:]:
-                            avgNormalizedPSFR = np.append(avgNormalizedPSFR,
-                                                          normalizedPSFR[index].mean(axis=0), axis=1)
-                        avgNormalizedPSFR_mean = avgNormalizedPSFR.mean(axis=1)
-                        avgNormalizedPSFR_sem = avgNormalizedPSFR.std(axis=1) / np.sqrt(avgNormalizedPSFR.shape[1])
-                        ax[3][j].plot(ps_T_corrected, avgNormalizedPSFR_mean, color=colorsPlt[i])
-                        ax[3][j].fill_between(ps_T_corrected,
-                                              avgNormalizedPSFR_mean - avgNormalizedPSFR_sem,
-                                              avgNormalizedPSFR_mean + avgNormalizedPSFR_sem,
-                                              alpha=0.2, color=colorsPlt[i])
+                    plot_populationAvgFR(tms, ps_T_corrected, ps_FR,
+                                         selectBlocksinfo, rasterRowConds, zeroMTCond, activeNeu, ax, rowIdx,
+                                         colIdx, colorsPlt)
 
         if xlim is not None:
             adjust_xlim(ax, xlim)
@@ -199,8 +153,15 @@ if __name__ == '__main__':
         {'selectionParams': {'Epoch': {'Region': 'thal', 'Layer': None}, 'RecArea ': 'BZ'}},
         {'selectionParams': {'Epoch': {'Region': 'thal', 'Layer': None}, 'RecArea ': 'CZ'}},
     )
+
+    epochs = (
+        {'selectionParams': {'Epoch': {'Region': 'MC', 'Layer': 'L5'}}},
+        {'selectionParams': {'Epoch': {'Region': 'SC', 'Layer': 'L5'}}},
+        {'selectionParams': {'Epoch': {'Region': 'VC', 'Layer': 'L5'}}},
+    )
+
     animalList = r'G:\Vishnu\data\TMSTG\animalList.xlsx'
     tms = TMSTG.load(animalList)
-    plot(tms, colParams=epochs, rasterOnly=False, rasterAndPsfr=False, rasterAndPopulationAvgFR=True, xlim=[-20, 60])
-
+    # plot(tms, colParams=epochs, rasterOnly=False, rasterAndPsfr=False, rasterAndPopulationAvgFR=True, xlim=[-20, 60])
+    plot(tms, colParams=epochs, rasterOnly=False, rasterAndPsfr=True, rasterAndPopulationAvgFR=False, xlim=[-20, 60])
     nb.set_num_threads(nb.config.NUMBA_DEFAULT_NUM_THREADS)
