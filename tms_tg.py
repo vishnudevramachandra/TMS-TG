@@ -370,8 +370,10 @@ class TMSTG(object):
                     for index in indices[1:]:
                         postStimFR = np.append(postStimFR, ps_FR[index], axis=0)
                         baselineFR = np.append(baselineFR, ps_baseline_FR[index], axis=0)
-                    activeNeu[epoch] = np.ravel(scipy.stats.ttest_ind(
-                        postStimFR, baselineFR, axis=0, alternative='greater').pvalue < 0.05)
+                    activeNeu[epoch] = scipy.stats.ttest_ind(postStimFR.reshape(postStimFR.shape[0::2]),
+                                                             baselineFR.reshape(baselineFR.shape[0::2]),
+                                                             axis=0,
+                                                             alternative='greater').pvalue < 0.05
                 else:
                     indices = np.where(selectBlocksinfo.index == epoch)[0]
                     activeNeu[epoch] = np.repeat(False, ps_FR[indices[0]].shape[2], axis=0)

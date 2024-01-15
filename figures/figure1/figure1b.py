@@ -3,13 +3,10 @@ import numpy as np
 import numba as nb
 import pandas as pd
 import copy
-from statistics import mean
 
-from tms_tg import TMSTG, FilterBlocks, EPOCHISOLATORS
-from cachetools import cached
-from cachetools.keys import hashkey
+from tms_tg import TMSTG, EPOCHISOLATORS
 from itertools import zip_longest
-from figures.helper_figs import adjust_xlim, plot_populationAvgFR, fb
+from figures.helper_figs import adjust_lim, plot_populationAvgFR, fb, plot_delay
 
 
 def plot(tms, activeNeu, colParams=None, xlim=None):
@@ -44,9 +41,9 @@ def plot(tms, activeNeu, colParams=None, xlim=None):
 
             ax[0][colIdx].set_title(colName, fontsize=8)
             # plot population activity
-            plot_populationAvgFR(tms, ps_T_corrected, ps_FR,
-                                 selectBlocksinfo, traceConds, zeroMTCond, activeNeu, ax, 0,
-                                 colIdx, colorsPlt, [item['selectionParams']['Epoch']['Layer'] for item in traceConds])
+            plot_populationAvgFR(ps_FR, ps_T_corrected,
+                                 selectBlocksinfo, traceConds, zeroMTCond, activeNeu, ax[0][colIdx],
+                                 colorsPlt, [item['selectionParams']['MT'] for item in traceConds])
             if colIdx == 0:
                 ax[0][colIdx].legend(fontsize=6)
 
@@ -81,11 +78,13 @@ def plot(tms, activeNeu, colParams=None, xlim=None):
 
             for partname in ('cbars', 'cmins', 'cmaxes', 'cmeans'):
                 vplot[partname].set_colors(colorsPlt)
+
             if colIdx == 0:
                 ax[1][colIdx].set_ylabel('Delay (ms)', fontsize=8)
 
     if xlim is not None:
-        adjust_xlim(ax[0, :], xlim)
+        adjust_lim(ax[0, :], xlim, 'xlim')
+    adjust_lim(ax[1, :], ylim, 'ylim')
     plt.show()
     print('[(Number of Epochs, Number of Neurons per epoch), ...]: ', epochNumsAndActiveNeuronNums_perCol)
 
