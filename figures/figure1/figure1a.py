@@ -8,7 +8,7 @@ from tms_tg import TMSTG, EPOCHISOLATORS
 from cachetools import cached
 from cachetools.keys import hashkey
 from itertools import zip_longest
-from figures.helper_figs import (adjust_xlim, ascertain_colName_from_colParams, normalize_psfr, selectNeuron, fb,
+from figures.helper_figs import (adjust_lim, ascertain_colName_from_colParams, normalize_psfr, selectNeuron, fb,
                                  plot_MeanAndSEM, plot_populationAvgFR)
 
 
@@ -139,7 +139,7 @@ def plot(tms, colParams=None, rasterOnly=False, rasterAndPsfr=False, rasterAndPo
                                          colIdx, colorsPlt)
 
         if xlim is not None:
-            adjust_xlim(ax, xlim)
+            adjust_lim(ax, xlim, 'xlim')
         plt.show()
         print('[(Number of Epochs, Number of Neurons per epoch), ...]: ', epochNumsAndNeuronNums_perCol)
 
