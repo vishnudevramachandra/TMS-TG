@@ -4,15 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="fix: missing files">
-      <change afterPath="$PROJECT_DIR$/notebooks/all_figures.ipynb" afterDir="false" />
+    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="fix: violinplot done using seaborn">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/figures/figure1/figure1a.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure1/figure1a.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/figure1/activeNeu_Cortex" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure1/activeNeu_Cortex" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/figures/figure1/figure1b.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure1/figure1b.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/figures/figure2/figure2.eps" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/figures/figure2/figure2.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure2/figure2.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/figures/helper_figs.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/helper_figs.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tms_tg.py" beforeDir="false" afterPath="$PROJECT_DIR$/tms_tg.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/notebooks/all_figures.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/all_figures.ipynb" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -118,7 +116,7 @@
       <recent name="G:\Vishnu\Analysis\tms-tg\data" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.figure2">
+  <component name="RunManager" selected="Python.figure1b">
     <configuration default="true" type="PythonConfigurationType" factoryName="Python">
       <module name="TMS-TG" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -261,9 +259,9 @@
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.figure1b" />
         <item itemvalue="Python.figure2" />
         <item itemvalue="Python.tms_tg" />
-        <item itemvalue="Python.figure1b" />
         <item itemvalue="Python.figure1a" />
         <item itemvalue="Python.dataanalysis" />
       </list>
@@ -337,7 +335,7 @@
       <workItem from="1702818720894" duration="41640000" />
       <workItem from="1702899514707" duration="50452000" />
       <workItem from="1704877903816" duration="28150000" />
-      <workItem from="1704974286421" duration="51138000" />
+      <workItem from="1704974286421" duration="60228000" />
     </task>
     <task id="LOCAL-00001" summary="feat: read matlab/hdf5 files">
       <created>1688659386984</created>
@@ -476,7 +474,15 @@
       <option name="project" value="LOCAL" />
       <updated>1705059874940</updated>
     </task>
-    <option name="localTasksCounter" value="20" />
+    <task id="LOCAL-00020" summary="fix: violinplot done using seaborn">
+      <option name="closed" value="true" />
+      <created>1705329076787</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1705329076787</updated>
+    </task>
+    <option name="localTasksCounter" value="21" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -564,7 +570,8 @@
     <MESSAGE value="feat: TMSTG gets 'late_comp' method for analysis of late activity" />
     <MESSAGE value="feat: Figure1 &amp; Figure2" />
     <MESSAGE value="fix: missing files" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix: missing files" />
+    <MESSAGE value="fix: violinplot done using seaborn" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix: violinplot done using seaborn" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -611,13 +618,8 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/figures/figure1/figure1b.py</url>
-          <line>106</line>
+          <line>103</line>
           <option name="timeStamp" value="746" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/figures/figure2/figure2.py</url>
-          <line>96</line>
-          <option name="timeStamp" value="808" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tms_tg.py</url>
@@ -625,9 +627,9 @@
           <option name="timeStamp" value="815" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/figures/figure2/figure2.py</url>
-          <line>69</line>
-          <option name="timeStamp" value="864" />
+          <url>file://$PROJECT_DIR$/figures/figure1/figure1b.py</url>
+          <line>100</line>
+          <option name="timeStamp" value="871" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="jupyter-line">
           <url>notebook://G:/Vishnu/Analysis/tms-tg/notebooks/analysis.ipynb</url>
@@ -645,7 +647,7 @@
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/tms_tg$dataanalysis.coverage" NAME="dataanalysis Coverage Results" MODIFIED="1695913497108" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/TMS_TG$Matdata.coverage" NAME="Matdata Coverage Results" MODIFIED="1688658637104" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
-    <SUITE FILE_PATH="coverage/tms_tg$figure1b.coverage" NAME="figure1b Coverage Results" MODIFIED="1703039718012" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure1" />
+    <SUITE FILE_PATH="coverage/tms_tg$figure1b.coverage" NAME="figure1b Coverage Results" MODIFIED="1705399757553" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure1" />
     <SUITE FILE_PATH="coverage/tms_tg$figure1a.coverage" NAME="figure1a Coverage Results" MODIFIED="1702999872167" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure1" />
     <SUITE FILE_PATH="coverage/tms_tg$matpy.coverage" NAME="matpy Coverage Results" MODIFIED="1694000843520" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/tms_tg$dataanalysis__1_.coverage" NAME="dataanalysis (1) Coverage Results" MODIFIED="1694430882996" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />

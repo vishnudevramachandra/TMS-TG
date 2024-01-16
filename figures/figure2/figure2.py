@@ -18,7 +18,7 @@ def plot(tms, activeNeu, colParams=None, xlim=None, kind=None):
     plt.style.use('default')
     colorsPlt = ('C0', 'C1', 'C2')
     ylim = [np.inf, 0]
-    epochNumsAndActiveNeuronNums_perCol = list()
+    animalNumsEpochNumsAndActiveNeuronNums_perCol = list()
     delays = dict()
     fig, ax = plt.subplots(2, len(colParams))
 
@@ -36,8 +36,9 @@ def plot(tms, activeNeu, colParams=None, xlim=None, kind=None):
             ps_T_corrected = tms.analysis_params['peristimParams']['timeWin'][0] + ps_T
 
             # statistics
-            epochNumsAndActiveNeuronNums_perCol.append(
-                (len(epochIndices), [activeNeu[epochIndex].sum() for epochIndex in epochIndices]))
+            animalNumsEpochNumsAndActiveNeuronNums_perCol.append((np.unique([item[0] for item in epochIndices]).size,
+                                                                  len(epochIndices),
+                                                                  [activeNeu[item].sum() for item in epochIndices]))
 
             ax[0][colIdx].set_title(colName, fontsize=8)
 
@@ -51,9 +52,10 @@ def plot(tms, activeNeu, colParams=None, xlim=None, kind=None):
                     if colIdx == 0:
                         ax[0][colIdx].set_ylabel('Normalized\nfiring rate', fontsize=8)
                 case _:
-                    plot_populationAvgFR(ps_FR, ps_T_corrected,
-                                         selectBlocksinfo, traceConds, zeroMTCond, activeNeu, ax[0][colIdx],
-                                         colorsPlt, [item['selectionParams']['MT'] for item in traceConds])
+                    plot_populationAvgFR(ps_FR,
+                                         ps_T_corrected, selectBlocksinfo, traceConds, zeroMTCond, activeNeu,
+                                         ax[0][colIdx], colorsPlt,
+                                         [item['selectionParams']['MT'] for item in traceConds])
                     if colIdx == 0:
                         ax[0][colIdx].set_ylabel('Average\nfiring rate', fontsize=8)
 
@@ -61,11 +63,13 @@ def plot(tms, activeNeu, colParams=None, xlim=None, kind=None):
                 ax[0][colIdx].legend(fontsize=6)
 
             # plot delay
-            plot_delay(delays, ax, colParams, colIdx, tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeu)
+            plot_delay(delays, ax, colParams, colIdx, tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeu,
+                       swarmplotsize=3)
+            ax[1][colIdx].set_xticks([0, 1, 2], labels=[item['selectionParams']['MT'] for item in traceConds])
 
+            ylim = [min(ax[1][colIdx].get_ylim()[0], ylim[0]), max(ax[1][colIdx].get_ylim()[1], ylim[1])]
             if colIdx == 0:
                 ax[1][colIdx].set_ylabel('Delay (ms)', fontsize=8)
-            ylim = [min(ax[1][colIdx].get_ylim()[0], ylim[0]), max(ax[1][colIdx].get_ylim()[1], ylim[1])]
 
     if xlim is not None:
         adjust_lim(ax[0, :], xlim, 'xlim')
@@ -74,7 +78,8 @@ def plot(tms, activeNeu, colParams=None, xlim=None, kind=None):
     plt.show()
     with open('delays.pickle', 'wb') as f:
         pickle.dump(delays, f)
-    print('[(Number of Epochs, Number of Neurons per epoch), ...]: ', epochNumsAndActiveNeuronNums_perCol)
+    print('[(Number of Animals, Number of Epochs, Number of Neurons per epoch), ...]: ',
+          animalNumsEpochNumsAndActiveNeuronNums_perCol)
 
 
 if __name__ == '__main__':

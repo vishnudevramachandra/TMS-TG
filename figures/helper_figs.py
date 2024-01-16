@@ -127,16 +127,16 @@ def compute_delay(tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeu):
     return delays
 
 
-def plot_delay(delays, ax, colParams, colIdx, tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeu):
+def plot_delay(delays, ax, colParams, colIdx, tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeu,
+               swarmplotsize=3):
     delays.update(
         {ascertain_colName_from_colParams(colParams[colIdx]):
              {key: delay for key, delay in zip([ascertain_colName_from_colParams(item) for item in traceConds],
                                                compute_delay(tms, selectBlocksinfo, zeroMTCond, traceConds,
                                                              activeNeu))}})
     sns.swarmplot(data=list(delays[ascertain_colName_from_colParams(colParams[colIdx])].values()),
-                  color='k', size=3, ax=ax[1][colIdx])
+                  color='k', size=swarmplotsize, ax=ax[1][colIdx])
     sns.violinplot(data=list(delays[ascertain_colName_from_colParams(colParams[colIdx])].values()),
                    inner=None, ax=ax[1][colIdx])
-    ax[1][colIdx].set_xticks([0, 1, 2], labels=[item['selectionParams']['MT'] for item in traceConds])
 
     pass
