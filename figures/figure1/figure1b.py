@@ -97,7 +97,7 @@ if __name__ == '__main__':
     )
     animalList = r'G:\Vishnu\data\TMSTG\animalList.xlsx'
     tms = TMSTG.load(animalList)
-    activeNeu = tms.stats_is_signf_active()
+    # activeNeu = tms.stats_is_signf_active()
     activeNeu = pd.read_pickle("./activeNeu_Cortex")
     plot(tms, activeNeu, colParams=epochs, xlim=[-20, 60])
 
