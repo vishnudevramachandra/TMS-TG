@@ -1,23 +1,22 @@
 import numpy as np
-import numba as nb
 import pandas as pd
 import re
-from lib.dataanalysis import peristim_firingrate
-from collections.abc import Iterator
-
-COLS_WITH_FLOATS = {'MSO ', 'MT', 'no. of Trigs', 'Stimpulses', 'Depth_int'}
-COLS_WITH_STRINGS = {'StimHem', 'CoilDir', 'TG-Injection ', 'RecArea ', 'RecHem', 'Filename'}
+from functools import lru_cache, wraps
+from lib.constants import COLS_WITH_STRINGS
+import scipy
+import warnings
+from typing import Optional, Any
 
 
 class AnalysisParams(object):
     """
-    Set parameters for selecting a subset of data and analysing it
+    Data descriptor that stores parameters which are used for data selection and data analysis
     """
 
     def __init__(self, params):
         self.__set__(self, params)
 
-    def __set__(self, obj, params):
+    def __set__(self, obj: 'TMSTG', params):
         if self == obj:
             self.analysis_params = params
 
@@ -43,229 +42,310 @@ class AnalysisParams(object):
                         for epochKey in self.analysis_params['selectionParams']['Epoch']:
                             if epochKey in params['selectionParams']['Epoch'].keys():
                                 if not issubclass(type(params['selectionParams']['Epoch'][epochKey]),
-                                                  tuple | set | list | None):
+                                                  tuple | set | list | np.ndarray | None):
                                     params['selectionParams']['Epoch'][epochKey] \
                                         = (params['selectionParams']['Epoch'][epochKey],)
                             else:
                                 params['selectionParams']['Epoch'][epochKey] \
                                     = self.analysis_params['selectionParams']['Epoch'][epochKey]
+
+                    for col in params['selectionParams'].keys() & COLS_WITH_STRINGS:
+                        if not issubclass(type(params['selectionParams'][col]), tuple | set | list | np.ndarray):
+                            params['selectionParams'][col] = (params['selectionParams'][col],)
+
                 else:
                     params['selectionParams'] = self.analysis_params['selectionParams']
 
-                if 'smoothingParams' in params.keys():
-                    unentered_keys = self.analysis_params['smoothingParams'].keys() \
-                                     - params['smoothingParams'].keys()
-                    for key in unentered_keys:
-                        params['smoothingParams'][key] = self.analysis_params['smoothingParams'][key]
-                    if unentered_keys == self.analysis_params['smoothingParams'].keys():
-                        raiseFlag = True
-                else:
-                    params['smoothingParams'] = self.analysis_params['smoothingParams']
-
-                if 'timeWin' in params.keys():
-                    if len(params['timeWin']) == 2:
-                        params['timeWin'] = tuple(params['timeWin'])
+                if 'TMSArtifactParams' in params.keys() and 'timeWin' in params['TMSArtifactParams'].keys():
+                    if len(params['TMSArtifactParams']['timeWin']) == 2:
+                        params['TMSArtifactParams']['timeWin'] = tuple(params['TMSArtifactParams']['timeWin'])
+                        obj.singleUnitsSpikeTimes.cache_clear()
                     else:
-                        params['timeWin'] = self.analysis_params['timeWin']
+                        params['TMSArtifactParams']['timeWin'] \
+                            = self.analysis_params['TMSArtifactParams']['timeWin']
                         raiseFlag = True
                 else:
-                    params['timeWin'] = self.analysis_params['timeWin']
+                    params['TMSArtifactParams'] = self.analysis_params['TMSArtifactParams']
 
-                if 'trigger' in params.keys():
-                    # TODO: random trigger implementation
-                    pass
-                else:
-                    params['trigger'] = self.analysis_params['trigger']
+                if 'peristimParams' in params.keys():
+                    if 'smoothingParams' in params['peristimParams'].keys():
+                        unentered_keys = self.analysis_params['peristimParams']['smoothingParams'].keys() \
+                                         - params['peristimParams']['smoothingParams'].keys()
+                        for key in unentered_keys:
+                            params['peristimParams']['smoothingParams'][key] \
+                                = self.analysis_params['peristimParams']['smoothingParams'][key]
+                        if unentered_keys == self.analysis_params['peristimParams']['smoothingParams'].keys():
+                            raiseFlag = True
+                    else:
+                        params['peristimParams']['smoothingParams'] \
+                            = self.analysis_params['peristimParams']['smoothingParams']
 
-                if 'baselinetimeWin' in params.keys():
-                    pass
+                    if 'timeWin' in params['peristimParams'].keys():
+                        if len(params['peristimParams']['timeWin']) == 2:
+                            params['peristimParams']['timeWin'] = tuple(params['peristimParams']['timeWin'])
+                        else:
+                            params['peristimParams']['timeWin'] = self.analysis_params['peristimParams']['timeWin']
+                            raiseFlag = True
+                    else:
+                        params['peristimParams']['timeWin'] = self.analysis_params['peristimParams']['timeWin']
+
+                    if 'trigger' in params['peristimParams'].keys():
+                        # TODO: random trigger implementation
+                        pass
+                    else:
+                        params['peristimParams']['trigger'] = self.analysis_params['peristimParams']['trigger']
+
+                    if 'baselinetimeWin' in params['peristimParams'].keys():
+                        pass
+                    else:
+                        params['peristimParams']['baselinetimeWin'] \
+                            = self.analysis_params['peristimParams']['baselinetimeWin']
                 else:
-                    params['baselinetimeWin'] = self.analysis_params['baselinetimeWin']
+                    params['peristimParams'] = self.analysis_params['peristimParams']
 
                 if raiseFlag:
                     raise ValueError
 
             except ValueError:
-                print(f'psfr_params does not adhere to correct format, '
+                print(f'analysis_params does not adhere to correct format, '
                       f'using instead default/previous params...')
 
-            print('psfr_params set to: ', params)
+            print('analysis_params set to: ', params)
+            print('----------------------------')
             self.analysis_params = params
-            obj.psfr = list(), list(), list(), list()
+
+            # do housekeeping
+            if 'psts' in obj.__dict__:
+                del obj.psts
+            obj.compute_firingrate.cache_clear()
+            obj.filter_blocks = None
+            _, _ = obj.filter_blocks
 
     def __get__(self, obj, objType):
         return self.analysis_params
 
 
-class PSFR(object):
+def _get_trigger_times_for_current_block(trigType, matdatum, blockinfo):
+    if trigType == 'TMS':
+        trigger = _read_trigger(matdatum)
+        return trigger[blockinfo['TrigStartIdx'] + np.array(range(blockinfo['no. of Trigs']))]
+    else:
+        ...  # TODO: random trigger implementation
+
+
+@lru_cache(maxsize=None)
+def _read_trigger(matdatum):
+    trigChanIdx = matdatum['TrigChan_ind'][0, 0].astype(int) - 1
+    refs = matdatum['rawData/trigger'].flatten()
+    return matdatum[refs[trigChanIdx]].flatten()[::2] * 1e3
+
+
+def _check_trigger_numbers(matdata, blocksinfo) -> None:
+    epochIndices = blocksinfo.index.unique().to_numpy()
+    for epochIndex in epochIndices:
+        trigger = _read_trigger(matdata[epochIndex])
+        assert blocksinfo.loc[epochIndex, 'no. of Trigs'].sum() == len(trigger), \
+            f'no. of triggers in epoch {epochIndex} does not match with mat-data ({len(trigger)})'
+        # matdata[epochIndex][matdata[epochIndex]['CombiMCD_fnames'].flatten()[0]].tobytes().decode('utf-16')
+
+
+@lru_cache(maxsize=None)
+def _read_MSO(matdatum) -> np.ndarray:
+    refs = matdatum['blockInfo/MSO'].flatten()
+    mso = [matdatum[i].flatten().tobytes().decode('utf-16') for i in refs]
+    return np.array(
+        [int(re.findall(r'\d+', item)[0]) if re.findall(r'\d+', item) else 0 for item in mso])
+
+
+def _check_mso_order(matdata, blocksinfo) -> None:
+    epochIndices = blocksinfo.index.unique().to_numpy()
+    for epochIndex in epochIndices:
+        if any([re.search(r'/', item) for item in
+                [matdata[epochIndex][ref].flatten().tobytes().decode('utf-16')
+                 for ref in matdata[epochIndex]['blockInfo/MSO'].flatten()]]):
+            warnings.warn(f'Cannot check the MSO order in blocksinfo for epoch {epochIndex} using mat-data information.'
+                          f' Hence, using the MSO order in blocksinfo as it is; keep in mind that the source of this '
+                          f'MSO order contained in infofile has to match the true recording MSO order, otherwise wrong '
+                          f'MSO will be associated to epochs [Katastrophe].')
+            continue
+
+        mso = _read_MSO(matdata[epochIndex])
+        nonZeroMSOindices = blocksinfo.loc[epochIndex, 'MSO '].to_numpy() != 0
+        try:
+            assert all(blocksinfo.loc[epochIndex, 'MSO '][nonZeroMSOindices] == mso[nonZeroMSOindices])
+
+        except AssertionError:
+            # check the case where filenames were not correctly labeled with _mso values
+            refs = matdata[epochIndex]['CombiMCD_fnames'].flatten()
+            combiMCDFnames = pd.Series([matdata[epochIndex][i].flatten().tobytes().decode('utf-16') for i in refs])
+            fnames = combiMCDFnames.str.rsplit(pat='\\', n=1, expand=True)[1]
+            if not all(fnames.values == blocksinfo.loc[epochIndex, 'Filename'].values):
+                warnings.warn(f'MSO order in blocksinfo for epoch {epochIndex} differs from mat-data.'
+                              f'Hence, the order in blocksinfo is being changed to match mat-data')
+                index = list()
+                for row in blocksinfo.loc[epochIndex, 'Filename']:
+                    index.append(np.argwhere(fnames.str.fullmatch(row)).item())
+                assert len(index) == len(blocksinfo.loc[epochIndex, 'Filename']), \
+                    f'The filenames in blocksinfo for epoch {epochIndex} do not match combiMCDFnames'
+                tmp = blocksinfo.loc[epochIndex, :].copy()
+                blocksinfo.loc[epochIndex, :].iloc[index, :] = tmp
+                blocksinfo.drop(columns='TrigStartIdx', inplace=True)
+                _concat_blocksinfo(blocksinfo, 'TrigStartIdx')
+
+
+def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[Any] = None) -> None:
     """
-    Compute peri-stimulus firing rate, cache it, and append when demanded
+    Adds a new column to passed DataFrame
+
+    Parameters
+    ----------
+    blocksinfo:  [DataFrame] if the 'value' parameter is equal to None, then
+                 this has to be MultiIndex-ed DataFrame containing block information
+    colName:     name for the newly added column
+    value:       [Optional] all rows of the newly added column are set to this value
+
+    Returns
+    -------
+    DataFrame with an added column
     """
 
-    def __init__(self):
-        self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T \
-            = list(), list(), list(), list()
+    if colName not in blocksinfo.columns:
 
-    def __set__(self, obj, *args):
-        self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T \
-            = args[0][0], args[0][1], args[0][2], args[0][3]
+        if value is not None:
+            blocksinfo[colName] = value
 
-    def __get__(self, obj, objType):
-        # obj.matdata[0][obj.matdata[0]['CombiMCD_fnames'].flatten()[0]].tobytes().decode('utf-16')
-        # pd.set_option('display.expand_frame_repr', False)
-
-        if len(self._ps_FR) != 0:
-            return self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T
-
-        uniqueEpochs = obj.epochinfo.index.unique().to_frame(index=False)
-        selectEpochs = self._filterEpochs(uniqueEpochs, obj.analysis_params['selectionParams']['Epoch'])
-
-        for i, epoch in selectEpochs.items():
-
-            if 'TMS' in obj.analysis_params['trigger'].keys():
-                trigger = self._read_trigger(obj.matdata[i])
-            else:
-                ...
-            # TODO: random trigger implementation
-
-            singleUnitsSpikeTimes = self._read_singleUnitsSpikeTimes(obj.matdata[i])
-
-            thisEpoch_df = obj.epochinfo.loc[epoch, :]
-            num_of_trigs = thisEpoch_df['no. of Trigs'].to_numpy(dtype=int)
-            assert sum(num_of_trigs) == len(trigger), 'no. of triggers in infofile does not match with mat-data'
-            mso = self._read_MSO(obj.matdata[i])
-            assert all(thisEpoch_df['MSO '] == mso), 'mso order in infofile differs from mat-data'
-
-            # initialize boolArray[True] for selecting (booleanIndexing) blocks using criterion in ['selectionParams']
-            idx = thisEpoch_df['MSO '] == thisEpoch_df['MSO ']
-
-            # change the truth values of Index by doing floating point comparison
-            selectCols = obj.analysis_params['selectionParams'].keys() & COLS_WITH_FLOATS
-            for col in selectCols:
-                string = obj.analysis_params['selectionParams'][col]
-                if re.match('<=', string):
-                    val = re.sub('<=', '', string)
-                    idx &= thisEpoch_df[col] <= np.float_(val)
-                elif re.match('<', string):
-                    val = re.sub('<', '', string)
-                    idx &= thisEpoch_df[col] <= np.float_(val)
-                elif re.match('>=', string):
-                    val = re.sub('>=', '', string)
-                    idx &= thisEpoch_df[col] >= np.float_(val)
-                elif re.match('>', string):
-                    val = re.sub('>', '', string)
-                    idx &= thisEpoch_df[col] > np.float_(val)
-                elif re.match('==', string):
-                    val = re.sub('==', '', string)
-                    idx &= thisEpoch_df[col] == np.float_(val)
-
-            # change the truth values of Index by doing string comparison
-            selectCols = obj.analysis_params['selectionParams'].keys() & COLS_WITH_STRINGS
-            for col in selectCols:
-                string = obj.analysis_params['selectionParams'][col]
-                idx &= thisEpoch_df[col].str.contains(string)
-
-            # select trigger by using the Index
-            startTrigIdx, stopTrigIdx = np.append(0, num_of_trigs[:-1].cumsum()), num_of_trigs.cumsum()
-            startTrigIdx, stopTrigIdx = startTrigIdx[idx], stopTrigIdx[idx]
-            trigIdx_blockwise = [np.arange(x, y).tolist() for x, y in zip(startTrigIdx, stopTrigIdx)]
-            selectTrigger = trigger[[item for row in trigIdx_blockwise for item in row]]
-
-            # using selected trigger compute peristimulus FiringRate
-            if selectTrigger.size != 0:
-                timeIntervals = self._compute_timeIntervals(selectTrigger, *obj.analysis_params['timeWin'])
-
-                tmp_ps_FR, self._ps_T = peristim_firingrate(
-                    singleUnitsSpikeTimes, timeIntervals, obj.analysis_params['smoothingParams'])
-                self._ps_FR.append(tmp_ps_FR)
-
-                timeIntervals_baseline, baselineWinWidth \
-                    = self._compute_timeIntervals_baseline(selectTrigger, *obj.analysis_params['baselinetimeWin'])
-
-                tmp_ps_FR, self._ps_baseline_T = peristim_firingrate(
-                    singleUnitsSpikeTimes, timeIntervals_baseline,
-                    {'win': 'rect', 'width': baselineWinWidth, 'overlap': 0.0})
-                self._ps_baseline_FR.append(tmp_ps_FR)
-
-        return self._ps_FR, self._ps_T, self._ps_baseline_FR, self._ps_baseline_T
-
-    @staticmethod
-    def _filterEpochs(uniqueEpochs, epochSelectors):
-        idx = pd.Series(np.ones(uniqueEpochs.shape[0], dtype=bool))
-        for key in epochSelectors:
-            if epochSelectors[key] is not None:
-                idx &= uniqueEpochs[key].str.contains('|'.join(epochSelectors[key]))
-        selectEpochs = uniqueEpochs.loc[idx, :]
-        return pd.Series([tuple(x) for x in selectEpochs.to_numpy()], index=selectEpochs.index)
-
-    @staticmethod
-    def _read_MSO(data):
-        refs = data['blockInfo/MSO'].flatten()
-        mso = [data[i].flatten().tobytes().decode('utf-16') for i in refs]
-        return [int(re.findall(r'\d+', item)[0]) if re.findall(r'\d+', item) else 0 for item in mso]
-
-    @staticmethod
-    def _read_trigger(data):
-        trigChanIdx = data['TrigChan_ind'][0, 0].astype(int) - 1
-        refs = data['rawData/trigger'].flatten()
-        return [data[i].flatten() for i in refs][trigChanIdx][::2] * 1e3
-
-    @staticmethod
-    def _compute_timeIntervals(trigger, startT, endT):
-        timeIntervals = nb.typed.List()
-        [timeIntervals.append((x + startT, x + endT)) for x in trigger]
-        return timeIntervals
-
-    @staticmethod
-    def _compute_timeIntervals_baseline(trigger, startT, endT):
-        timeIntervals = nb.typed.List()
-        baselineWinWidth = endT - startT
-        [timeIntervals.append((x + startT + (baselineWinWidth / 2), x + endT)) for x in trigger]
-        return timeIntervals, baselineWinWidth
-
-    @staticmethod
-    def _read_singleUnitsSpikeTimes(matdata):
-        multiUnitSpikeTimes: np.ndarray = matdata['SpikeModel/SpikeTimes/data'].flatten()
-        refs = matdata['SpikeModel/ClusterAssignment/data'].flatten()
-        allSpikeTimes_neuronIdx = [matdata[i].flatten().astype(int) - 1 for i in refs]
-        singleUnitsSpikeTimes = nb.typed.List()
-        [singleUnitsSpikeTimes.append(multiUnitSpikeTimes[idx]) for idx in allSpikeTimes_neuronIdx]
-        return singleUnitsSpikeTimes
+        else:
+            match colName:
+                case 'TrigStartIdx':
+                    blocksinfo['TrigStartIdx'] = 0
+                    epochIndices = blocksinfo.index.unique().to_numpy()
+                    for epochIndex in epochIndices:
+                        num_of_trigs = blocksinfo.loc[epochIndex, 'no. of Trigs'].to_numpy()
+                        blocksinfo.loc[epochIndex, 'TrigStartIdx'] = np.append(0, num_of_trigs.cumsum()[:-1])
+                case _:
+                    print(f'Not implemented : Adding column with title "{colName}" without '
+                          f'a given value')
 
 
 class LateComponent(object):
+    """
+    Class dealing with analysis of late activity
+    """
+    _methodsForComputingDelay = {'threshold_crossing', 'starting_point_derived_from_slope', 'peak_as_delay'}
+    _defaultMethodForComputingDelay = 'starting_point_derived_from_slope'
+    earlyLateSeparationTimePoint = 5  # in msecs
 
-    def __init__(self):
-        self.attr = 5
+    def __init__(self, method=None):
+        self.delayMethod = LateComponent._defaultMethodForComputingDelay if method is None else method
 
-    def __set__(self, obj, value):
-        self.attr = value
+    @property
+    def delayMethod(self):
+        return self._delayMethod
 
-    def __call__(self, *args, **kwargs):
-        print(*args)
-
-    def method(self):
-        ...
-
-
-class SpikeTimes(Iterator):
-
-    def __call__(self, *args, **kwargs):
-        ...
-
-    def __get__(self, obj, objType):
-        ...
-
-    def __init__(self):
-        self._index = 0
-
-    def __next__(self):
-        if self._index < len(self._index):
-            self._index += 1
-            return 'item'
+    @delayMethod.setter
+    def delayMethod(self, method):
+        if method in self._methodsForComputingDelay:
+            self._delayMethod = method
+        elif hasattr(self, '_delayMethod'):
+            print('wrong method passed for computing delay, reverting to previous method')
         else:
-            self._index = 0
-            raise StopIteration
+            self._delayMethod = LateComponent._defaultMethodForComputingDelay
+            print('wrong method passed during initiation, using default condition for computing delay')
+        print(f'Method for computing delay set to: {self._delayMethod}')
 
-    def __set__(self, obj, value):
-        ...
+    def compute_delay(self, meanPSFR, ps_T, meanBaselineFR, minPeakWidth) -> np.ndarray:
+        """
+        Compute the delay of activity with respect to trigger using one the chosen 'delayMethod'
+
+        Parameters
+        ----------
+        meanPSFR        :  average peristimulus activity; array[Time X N]
+        ps_T            :  Time points of peristimulus activity; array[1D]
+        meanBaselineFR  :  baseline firing rate; array[1 X N]
+        minPeakWidth    :  (ms); the cutoff criteria for selecting the peaks
+
+        Returns
+        -------
+        array[1D] of delays (size N)
+        """
+        match self.delayMethod:
+            case 'baseline_crossing':
+                fcn = self.threshold_crossing
+            case 'starting_point_derived_from_slope':
+                fcn = self.starting_point_derived_from_slope
+            case 'peak_as_delay':
+                fcn = self.peak_as_delay
+
+        dt = ps_T[1] - ps_T[0]
+        earlyLateSeparationIdx = (self.earlyLateSeparationTimePoint - ps_T[0]) / dt
+        delays = np.empty(shape=0, dtype=float)
+        for colIdx in range(meanPSFR.shape[1]):
+            # although the value 10 may seem arbitrary, it is appropriate for this dataset
+            minPeakHeight = 2 * meanBaselineFR[0, colIdx] if meanBaselineFR[0, colIdx] > 0.1 else 10
+            peaks, _ = scipy.signal.find_peaks(meanPSFR[:, colIdx], height=minPeakHeight, width=minPeakWidth / dt)
+            latePeaksIdx = np.argwhere(peaks >= earlyLateSeparationIdx)
+            if len(latePeaksIdx) > 0:
+                delays = np.append(delays, fcn(peaks.item(latePeaksIdx.item(0)),
+                                               dt,
+                                               ps_T[0],
+                                               meanPSFR[:, colIdx],
+                                               meanBaselineFR[0, colIdx],
+                                               minPeakHeight,
+                                               minPeakWidth,
+                                               earlyLateSeparationIdx))
+            else:
+                delays = np.append(delays, np.nan)
+        return delays
+
+    @staticmethod
+    def delay_deco(fcn):
+        @wraps(fcn)
+        def arg_filter(*args):
+            match fcn.__name__:
+                case 'baseline_crossing':
+                    return fcn(*args[:5])
+                case 'starting_point_derived_from_slope':
+                    return fcn(*args)
+                case 'peak_as_delay':
+                    return fcn(*args[:3])
+
+        return arg_filter
+
+    @staticmethod
+    @delay_deco
+    def threshold_crossing(peakIdx, dt, offset, waveform, baselineFR):
+        if baselineFR > 0:
+            return np.max(np.argwhere(waveform[:peakIdx] <= 1.5 * baselineFR), initial=0) * dt + offset
+        assert offset < 0, ('computed peristimulus firing does not have pre-stimulus activity, '
+                            'hence cannot compute baseline_crossing for zero-valued baselineFR')
+        baselineFR = waveform[:int(dt * -offset)].mean()
+        return np.max(np.argwhere(waveform[:peakIdx] <= 1.5 * baselineFR), initial=0) * dt + offset
+
+    @staticmethod
+    @delay_deco
+    def starting_point_derived_from_slope(
+            peakIdx, dt, offset, waveform, baselineFR, minPeakHeight, minPeakWidth, earlyLateSeparationIdx):
+        df1 = np.diff(waveform, n=1)
+        peaks, _ = scipy.signal.find_peaks(df1)
+        shadowPeak = find_shadowPeak(peakIdx, dt, waveform, minPeakWidth, scipy.signal.find_peaks(-df1)[0])
+        if shadowPeak >= earlyLateSeparationIdx and waveform[shadowPeak] > minPeakHeight:
+            peakIdx = shadowPeak
+        inflectionIdx = peaks[np.argwhere(peaks < peakIdx)].max()
+        return (offset
+                + (inflectionIdx + 0.5 -
+                   ((waveform[inflectionIdx:inflectionIdx + 2].mean() - baselineFR) / df1[inflectionIdx])) * dt)
+
+    @staticmethod
+    @delay_deco
+    def peak_as_delay(peakIdx, dt, offset):
+        return (peakIdx * dt) + offset
+
+
+def find_shadowPeak(peakIdx, dt, waveform, minPeakWidth, troughs):
+    troughs = troughs[troughs < peakIdx]
+    if troughs.size > 0:
+        return troughs[-1] + 1 - waveform[troughs[-1] - range(-1, np.rint(minPeakWidth / dt).astype(int))].argmax()
+    return np.nan
+
+
+
