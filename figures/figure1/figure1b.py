@@ -91,9 +91,9 @@ if __name__ == '__main__':
     nb.set_num_threads(nb.config.NUMBA_NUM_THREADS)
 
     epochs = (
-        {'selectionParams': {'Epoch': {'Region': 'MC', }, 'MT': '==1'}},
-        {'selectionParams': {'Epoch': {'Region': 'SC', }, 'MT': '==1'}},
-        {'selectionParams': {'Epoch': {'Region': 'VC', }, 'MT': '==1'}},
+        {'selectionParams': {'Epoch': {'Region': 'MC', }, 'MT': '<1'}},
+        {'selectionParams': {'Epoch': {'Region': 'SC', }, 'MT': '<1'}},
+        {'selectionParams': {'Epoch': {'Region': 'VC', }, 'MT': '<1'}},
     )
     animalList = r'G:\Vishnu\data\TMSTG\animalList.xlsx'
     tms = TMSTG.load(animalList)

@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 import pandas as pd
 import re
@@ -157,6 +159,27 @@ def _read_MSO(matdatum) -> np.ndarray:
         [int(re.findall(r'\d+', item)[0]) if re.findall(r'\d+', item) else 0 for item in mso])
 
 
+def _rowExpander(s):
+    ret = list()
+    indices = s.index
+    [indices := indices[indices != item] for item in ['MSO_order', 'TrigIndices']]
+    for idx in indices:
+        match idx:
+            case 'MSO ' | 'no. of Trigs' | 'Stimpulses':
+                ret.append(s['MSO_order'][idx].to_list())
+            case 'MT' | 'StimHem' | 'CoilDir' | 'TG-Injection ' | 'RecArea ' | 'RecHem' | 'Depth_int' | 'Movement':
+                ret.append([s[idx]] * s['MSO_order'].shape[0])
+            case 'Filename':
+                ret.append(s[idx].split(','))
+            case 'Queries ' | 'Skin-Injection' | 'Comments' | 'Time':
+                if isinstance(s[idx], list):
+                    ret.append(s[idx])
+                else:
+                    ret.append([s[idx]] * s['MSO_order'].shape[0])
+
+    return pd.DataFrame([[ret[j][i] for j in range(len(ret))] for i in range(len(ret[0]))], columns=indices)
+
+
 def _check_mso_order(matdata, blocksinfo) -> None:
     epochIndices = blocksinfo.index.unique().to_numpy()
     for epochIndex in epochIndices:
@@ -170,27 +193,35 @@ def _check_mso_order(matdata, blocksinfo) -> None:
             continue
 
         mso = _read_MSO(matdata[epochIndex])
-        nonZeroMSOindices = blocksinfo.loc[epochIndex, 'MSO '].to_numpy() != 0
+        infofileMSOorder = np.concatenate(
+            blocksinfo.loc[epochIndex, 'MSO_order'].apply(lambda x: x[['MSO_order', 'MSO ']].to_numpy()))
+        argsort = np.argsort(infofileMSOorder[:, 0])
+        infofileFilenames = np.concatenate(
+            blocksinfo.loc[epochIndex, 'Filename'].apply(lambda x: x.split(',')).to_numpy())[argsort]
+        infofileMSOorder = infofileMSOorder[argsort, 1]
+        nonZeroMSOindices = infofileMSOorder != 0
         try:
-            assert all(blocksinfo.loc[epochIndex, 'MSO '][nonZeroMSOindices] == mso[nonZeroMSOindices])
+            assert all(infofileMSOorder[nonZeroMSOindices] == mso[nonZeroMSOindices])
 
         except AssertionError:
             # check the case where filenames were not correctly labeled with _mso values
             refs = matdata[epochIndex]['CombiMCD_fnames'].flatten()
             combiMCDFnames = pd.Series([matdata[epochIndex][i].flatten().tobytes().decode('utf-16') for i in refs])
             fnames = combiMCDFnames.str.rsplit(pat='\\', n=1, expand=True)[1]
-            if not all(fnames.values == blocksinfo.loc[epochIndex, 'Filename'].values):
+            if not all(fnames.values == infofileFilenames):
                 warnings.warn(f'MSO order in blocksinfo for epoch {epochIndex} differs from mat-data.'
                               f'Hence, the order in blocksinfo is being changed to match mat-data')
                 index = list()
-                for row in blocksinfo.loc[epochIndex, 'Filename']:
+                for row in infofileFilenames:
                     index.append(np.argwhere(fnames.str.fullmatch(row)).item())
-                assert len(index) == len(blocksinfo.loc[epochIndex, 'Filename']), \
+                assert len(index) == len(infofileFilenames), \
                     f'The filenames in blocksinfo for epoch {epochIndex} do not match combiMCDFnames'
-                tmp = blocksinfo.loc[epochIndex, :].copy()
+                df = blocksinfo.loc[epochIndex, :].copy().reset_index(drop=True)
+                df = df.apply(_rowExpander, axis=1, result_type='expand')
+                [row for idx, row in df.iterrows()]
                 blocksinfo.loc[epochIndex, :].iloc[index, :] = tmp
-                blocksinfo.drop(columns='TrigStartIdx', inplace=True)
-                _concat_blocksinfo(blocksinfo, 'TrigStartIdx')
+                blocksinfo.drop(columns='TrigIndices', inplace=True)
+                _concat_blocksinfo(blocksinfo, 'TrigIndices')
 
 
 def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[Any] = None) -> None:
@@ -199,32 +230,70 @@ def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[A
 
     Parameters
     ----------
-    blocksinfo:  [DataFrame] if the 'value' parameter is equal to None, then
-                 this has to be MultiIndex-ed DataFrame containing block information
+    blocksinfo:  [DataFrame] to which a new column is concatenated
     colName:     name for the newly added column
     value:       [Optional] all rows of the newly added column are set to this value
 
     Returns
     -------
-    DataFrame with an added column
+    None
     """
 
     if colName not in blocksinfo.columns:
+        blocksinfo[colName] = value
 
-        if value is not None:
-            blocksinfo[colName] = value
 
-        else:
-            match colName:
-                case 'TrigStartIdx':
-                    blocksinfo['TrigStartIdx'] = 0
-                    epochIndices = blocksinfo.index.unique().to_numpy()
-                    for epochIndex in epochIndices:
-                        num_of_trigs = blocksinfo.loc[epochIndex, 'no. of Trigs'].to_numpy()
-                        blocksinfo.loc[epochIndex, 'TrigStartIdx'] = np.append(0, num_of_trigs.cumsum()[:-1])
-                case _:
-                    print(f'Not implemented : Adding column with title "{colName}" without '
-                          f'a given value')
+def _rowCombiner(subf, cols):
+    ret = list()
+    for col in cols:
+        match col:
+            case 'MSO ' | 'Depth_int':
+                ret.append(subf[col].mean().astype('int'))
+            case 'no. of Trigs' | 'Stimpulses':
+                ret.append(subf[col].sum())
+            case 'TrigIndices':
+                ret.append(np.concatenate(subf[col]))
+            case 'Filename':
+                ret.append(','.join(subf[col]))
+            case 'MSO_order':
+                ret.append(subf[[col, 'MSO ', 'no. of Trigs', 'Stimpulses']].reset_index(drop=True))
+
+    return pd.Series(ret, index=cols)
+
+
+def _edit_blocksinfo(blocksinfo: pd.DataFrame, cond: str) -> pd.DataFrame:
+    """
+    Edits blocksinfo so that each row pertains to a unique experimental condition
+
+    Parameters
+    ----------
+    blocksinfo:     MultiIndex-ed [DataFrame] containing block information
+    cond:           new info added to dataframe
+
+    Returns
+    -------
+    edited DataFrame
+    """
+
+    if cond not in ('TrigIndices',):
+        raise NotImplementedError(f'editing blocksinfo while using {cond} as argument is not implemented')
+
+    blocksinfo['MSO_order'] = np.array(range(blocksinfo.shape[0]))
+    for epochIndex in blocksinfo.index.unique():
+        num_of_trigs = blocksinfo.loc[epochIndex, 'no. of Trigs'].to_numpy()
+        stimpulses = blocksinfo.loc[epochIndex, 'Stimpulses'].to_numpy()
+        blocksinfo.loc[epochIndex, 'TrigIndices'] = (
+                pd.Series([np.array(range(x)) for x in
+                           [b if (b <= a * 0.75) else a for a, b in zip(num_of_trigs, stimpulses)]])
+                + np.append(0, num_of_trigs.cumsum()[:-1])).values
+
+    gpExcludeCols = ['MSO ', 'no. of Trigs', 'Stimpulses', 'Filename', 'TrigIndices', 'Depth_int', 'MSO_order']
+    gp = blocksinfo.groupby(blocksinfo.index.names + list(np.setdiff1d(blocksinfo.columns, gpExcludeCols)),
+                            group_keys=True,
+                            sort=False)
+    return (gp.apply(lambda x: _rowCombiner(x, gpExcludeCols)).
+            reset_index(level=list(np.setdiff1d(blocksinfo.columns, gpExcludeCols)))
+            [blocksinfo.columns])
 
 
 class LateComponent(object):

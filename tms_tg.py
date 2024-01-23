@@ -164,7 +164,7 @@ class TMSTG(object):
                     columns=['Unnamed: 11', 'Queries'], errors='ignore').dropna(axis=0, how='all')
                 th._concat_blocksinfo(blocksinfo, 'Animal', str(groupinfo.loc[i, 'Animal']))
                 blocksinfo = cls.do_multi_indexing(blocksinfo, animalMatlabfnames)
-                th._concat_blocksinfo(blocksinfo, 'TrigStartIdx')
+                blocksinfo = th._edit_blocksinfo(blocksinfo, 'TrigIndices')
                 cls._sort_filelist(animalMatlabfnames, blocksinfo)
                 groupMatlabfnames = pd.concat([groupMatlabfnames, animalMatlabfnames], ignore_index=True)
                 groupBlocksinfo = pd.concat([groupBlocksinfo, blocksinfo])
@@ -270,17 +270,14 @@ class TMSTG(object):
         else:
             df.loc[:, EPOCHISOLATORS[3]] = np.nan
 
-        try:
-            if all(map(lambda x: isinstance(x, str), df['Filename'])):
-                df.loc[df['Filename'].str.contains('con'), EPOCHISOLATORS[4]] = 'contra'
-                df.loc[df['Filename'].str.contains('ips'), EPOCHISOLATORS[4]] = 'ipsi'
-            elif df['Filename'].isna().all():
-                df.loc[:, EPOCHISOLATORS[4]] = np.nan
-            else:
-                raise ValueError
-        except ValueError:
-            print(f'The infofile column \'Filename\' cannot be half empty, '
-                  f'which is the case for animal {df["Animal"][0]}')
+        if all(map(lambda x: isinstance(x, str), df['Filename'])):
+            df.loc[df['Filename'].str.contains('con'), EPOCHISOLATORS[4]] = 'contra'
+            df.loc[df['Filename'].str.contains('ips'), EPOCHISOLATORS[4]] = 'ipsi'
+        elif df['Filename'].isna().all():
+            df.loc[:, EPOCHISOLATORS[4]] = np.nan
+        else:
+            raise ValueError(f'The infofile column \'Filename\' cannot be half empty '
+                             f'which is the case for animal {df["Animal"][0]}')
 
         if not (matlabfnames.str.contains('|'.join(('same', 'opposite')))
                 | matlabfnames.str.contains('|'.join(('con', 'ips')))).any():
@@ -290,6 +287,7 @@ class TMSTG(object):
         df.fillna('none', inplace=True)
         df.set_index(EPOCHISOLATORS, inplace=True)
         df.sort_index(inplace=True)
+
         return df
 
     def avg_FR_per_neuron(self, squeezeDim=True) -> tuple[np.ndarray | list, np.ndarray, np.ndarray | list, np.ndarray]:
