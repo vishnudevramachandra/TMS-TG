@@ -1,7 +1,10 @@
 import numpy as np
 from itertools import zip_longest
-from tms_tg import EPOCHISOLATORS, FilterBlocks
 import seaborn as sns
+import copy
+
+from tms_tg import EPOCHISOLATORS, FilterBlocks
+
 
 fb = FilterBlocks()
 
@@ -60,6 +63,30 @@ def normalize_psfr(tms, fb, ps_T_corrected, ps_FR, blocksInfo):
 
 def selectNeuron(activeNeu):
     return np.random.choice(activeNeu)
+
+
+def selectEpochAndNeuron(epochAndNeuron, tms, epochIndices, activeNeus, colParam):
+    # randomly sample an epoch that has at least one active neuron for plotting if EpochAndNeuron is None
+    sampleActiveNeus = [False, ]
+    while not any(sampleActiveNeus):
+        sampleEpochIndex = epochIndices[np.random.choice(len(epochIndices))] \
+            if (epochAndNeuron is None or 'epochIndex' not in epochAndNeuron.keys()) else epochAndNeuron['epochIndex']
+        sampleParams = copy.deepcopy(colParam)
+        sampleParams['selectionParams']['Epoch'] = {key: value
+                                                    for key, value in zip(epochIndices.names, sampleEpochIndex)}
+        tms.analysis_params = sampleParams
+        sampleActiveNeus = activeNeus[sampleEpochIndex]
+        if epochAndNeuron is not None and 'epochIndex' in epochAndNeuron.keys():
+            assert any(sampleActiveNeus), f'Epoch {sampleEpochIndex} does not have any active neurons'
+            break
+
+    # randomly select a neuron for plotting raster
+    neuIdx = np.random.choice(sampleActiveNeus.nonzero()[0]) \
+        if epochAndNeuron is None or 'neuIdx' not in epochAndNeuron.keys() else epochAndNeuron['neuIdx']
+
+    sampleBlocksinfo, _ = tms.filter_blocks
+
+    return sampleBlocksinfo, sampleEpochIndex, neuIdx
 
 
 def plot_MeanAndSEM(meanPSFR, semPSFR, t, ax, pltColor, lineLabel):
