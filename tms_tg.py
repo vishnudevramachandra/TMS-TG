@@ -16,15 +16,15 @@ from lib.dataanalysis import peristim_firingrate, peristim_timestamp
 
 
 def _filter_blocks_helper(
-        blocksinfo, analysis_params, activeNeu=None) -> tuple[pd.DataFrame, pd.Series]:
+        blocksinfo, analysis_params, fIdx=None) -> tuple[pd.DataFrame, pd.Series]:
     """
     Filters MultiIndex-ed blocksinfo<DataFrame> using 'selectionParams' in analysis_params
 
     Parameters
     ----------
-    blocksinfo:          MultiIndex-ed DataFrame containing block information.
+    blocksinfo:         MultiIndex-ed DataFrame containing block information.
     analysis_params:    Dict with parameters for filtering blocksinfo
-    activeNeu:          [Optional] MultiIndex-ed Series of boolean array
+    fIdx:               [Optional] MultiIndex-ed Series of boolean array
 
     Returns
     -------
@@ -32,17 +32,17 @@ def _filter_blocks_helper(
 
     """
     # initialize boolArray[True] for selecting (booleanIndexing) blocks using criterion in ['selectionParams']
-    if activeNeu is None:
-        activeNeu = blocksinfo['MSO '] == blocksinfo['MSO ']
+    if fIdx is None:
+        fIdx = blocksinfo['MSO '] == blocksinfo['MSO ']
 
     # change the truth values of Index by doing string comparison on dataframe.Index
     epochIndices = blocksinfo.index.to_frame()
     for item in EPOCHISOLATORS:
         if (strings := analysis_params['selectionParams']['Epoch'][item]) is not None:
             if isinstance(strings, tuple):
-                activeNeu &= epochIndices[item].str.contains('|'.join(strings))
+                fIdx &= epochIndices[item].str.contains('|'.join(strings))
             else:
-                activeNeu &= epochIndices[item].str.contains(strings)
+                fIdx &= epochIndices[item].str.contains(strings)
 
     # change the truth values of Index by doing floating point comparison on dataframe columns
     selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_FLOATS
@@ -50,30 +50,30 @@ def _filter_blocks_helper(
         string = analysis_params['selectionParams'][col]
         if re.match('<=', string):
             val = re.sub('<=', '', string)
-            activeNeu &= blocksinfo[col] <= np.float_(val)
+            fIdx &= blocksinfo[col] <= np.float_(val)
         elif re.match('<', string):
             val = re.sub('<', '', string)
-            activeNeu &= blocksinfo[col] < np.float_(val)
+            fIdx &= blocksinfo[col] < np.float_(val)
         elif re.match('>=', string):
             val = re.sub('>=', '', string)
-            activeNeu &= blocksinfo[col] >= np.float_(val)
+            fIdx &= blocksinfo[col] >= np.float_(val)
         elif re.match('>', string):
             val = re.sub('>', '', string)
-            activeNeu &= blocksinfo[col] > np.float_(val)
+            fIdx &= blocksinfo[col] > np.float_(val)
         elif re.match('==', string):
             val = re.sub('==', '', string)
-            activeNeu &= blocksinfo[col] == np.float_(val)
+            fIdx &= blocksinfo[col] == np.float_(val)
 
     # change the truth values of Index by doing string comparison on dataframe columns
     selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_STRINGS
     for col in selectCols:
         strings = analysis_params['selectionParams'][col]
         if isinstance(strings, tuple):
-            activeNeu &= blocksinfo[col].str.contains('|'.join(strings))
+            fIdx &= blocksinfo[col].str.contains('|'.join(strings))
         else:
-            activeNeu &= blocksinfo[col].str.contains(strings)
+            fIdx &= blocksinfo[col].str.contains(strings)
 
-    return blocksinfo.loc[activeNeu, :], activeNeu
+    return blocksinfo.loc[fIdx, :], fIdx
 
 
 class FilterBlocks(object):
@@ -86,14 +86,14 @@ class FilterBlocks(object):
 
     def __get__(self, obj, objType):
         if self.cache is None:
-            self.cache = _filter_blocks_helper(obj.blocksinfo, obj.analysis_params, activeNeu=None)
+            self.cache = _filter_blocks_helper(obj.blocksinfo, obj.analysis_params, fIdx=None)
         return self.cache[0], self.cache[1]
 
     def __set__(self, obj, value):
         self.cache = value
 
-    def __call__(self, blocksinfo, analysis_params, activeNeu=None):
-        return _filter_blocks_helper(blocksinfo, analysis_params, activeNeu)
+    def __call__(self, blocksinfo, analysis_params, filterIndices=None):
+        return _filter_blocks_helper(blocksinfo, analysis_params, filterIndices)
 
 
 class TMSTG(object):

@@ -130,7 +130,7 @@ class AnalysisParams(object):
 def _get_trigger_times_for_current_block(trigType, matdatum, blockinfo):
     if trigType == 'TMS':
         trigger = _read_trigger(matdatum)
-        return trigger[blockinfo['TrigStartIdx'] + np.array(range(blockinfo['no. of Trigs']))]
+        return trigger[blockinfo['TrigIndices']]
     else:
         ...  # TODO: random trigger implementation
 
@@ -162,22 +162,16 @@ def _read_MSO(matdatum) -> np.ndarray:
 def _rowExpander(s):
     ret = list()
     indices = s.index
-    [indices := indices[indices != item] for item in ['MSO_order', 'TrigIndices']]
     for idx in indices:
         match idx:
             case 'MSO ' | 'no. of Trigs' | 'Stimpulses':
                 ret.append(s['MSO_order'][idx].to_list())
-            case 'MT' | 'StimHem' | 'CoilDir' | 'TG-Injection ' | 'RecArea ' | 'RecHem' | 'Depth_int' | 'Movement':
-                ret.append([s[idx]] * s['MSO_order'].shape[0])
             case 'Filename':
                 ret.append(s[idx].split(','))
-            case 'Queries ' | 'Skin-Injection' | 'Comments' | 'Time':
-                if isinstance(s[idx], list):
-                    ret.append(s[idx])
-                else:
-                    ret.append([s[idx]] * s['MSO_order'].shape[0])
+            case _:
+                ret.append(s[idx])
 
-    return pd.DataFrame([[ret[j][i] for j in range(len(ret))] for i in range(len(ret[0]))], columns=indices)
+    return pd.Series(ret, index=s.index)
 
 
 def _check_mso_order(matdata, blocksinfo) -> None:
@@ -217,11 +211,13 @@ def _check_mso_order(matdata, blocksinfo) -> None:
                 assert len(index) == len(infofileFilenames), \
                     f'The filenames in blocksinfo for epoch {epochIndex} do not match combiMCDFnames'
                 df = blocksinfo.loc[epochIndex, :].copy().reset_index(drop=True)
-                df = df.apply(_rowExpander, axis=1, result_type='expand')
-                [row for idx, row in df.iterrows()]
-                blocksinfo.loc[epochIndex, :].iloc[index, :] = tmp
-                blocksinfo.drop(columns='TrigIndices', inplace=True)
-                _concat_blocksinfo(blocksinfo, 'TrigIndices')
+                df = df.apply(_rowExpander, axis=1)
+                df = df.explode(['MSO ', 'no. of Trigs', 'Stimpulses', 'Filename', 'Queries ', 'Comments', 'Time'])
+                df[blocksinfo.index.names] = pd.DataFrame([epochIndex] * df.shape[0])
+                argsort = [np.nonzero(df.Filename.str.fullmatch(item))[0][0] for item in fnames]
+                df = df.iloc[argsort].set_index(blocksinfo.index.names)
+                df.drop(columns=['TrigIndices', 'MSO_order'], inplace=True)
+                blocksinfo.loc[epochIndex, :] = _edit_blocksinfo(df, 'TrigIndices')
 
 
 def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[Any] = None) -> None:
@@ -257,6 +253,8 @@ def _rowCombiner(subf, cols):
                 ret.append(','.join(subf[col]))
             case 'MSO_order':
                 ret.append(subf[[col, 'MSO ', 'no. of Trigs', 'Stimpulses']].reset_index(drop=True))
+            case 'Queries ' | 'Comments' | 'Time':
+                ret.append(list(subf[col]))
 
     return pd.Series(ret, index=cols)
 
@@ -287,7 +285,12 @@ def _edit_blocksinfo(blocksinfo: pd.DataFrame, cond: str) -> pd.DataFrame:
                            [b if (b <= a * 0.75) else a for a, b in zip(num_of_trigs, stimpulses)]])
                 + np.append(0, num_of_trigs.cumsum()[:-1])).values
 
-    gpExcludeCols = ['MSO ', 'no. of Trigs', 'Stimpulses', 'Filename', 'TrigIndices', 'Depth_int', 'MSO_order']
+    gpExcludeCols = ['MSO ', 'no. of Trigs', 'Stimpulses', 'Filename', 'TrigIndices', 'Depth_int', 'MSO_order',
+                     'Queries ', 'Comments', 'Time']
+    for col in ['Queries ', 'Comments', 'Time']:
+        if col not in blocksinfo.columns:
+            blocksinfo[col] = 'none'
+
     gp = blocksinfo.groupby(blocksinfo.index.names + list(np.setdiff1d(blocksinfo.columns, gpExcludeCols)),
                             group_keys=True,
                             sort=False)
