@@ -17,5 +17,6 @@ COILPOS = {'MC', 'SC', 'VC'}
 MANIPULATION = {'MUS'}
 
 EPOCHISOLATORS = ['Animal', 'Region', 'Layer', 'CoilHemVsRecHem', 'Mov', 'Depth']
-COLS_WITH_FLOATS = {'MSO ', 'MT', 'no. of Trigs', 'Stimpulses', 'Depth_int'}
-COLS_WITH_STRINGS = {'StimHem', 'CoilDir', 'TG-Injection ', 'RecArea ', 'RecHem', 'Filename'}
+COLS_WITH_NUMS = {'MSO ', 'MT', 'no. of Trigs', 'Stimpulses', 'Depth_int'}
+COLS_WITH_STRINGS = {'StimHem', 'CoilDir', 'TG-Injection ', 'RecArea ', 'RecHem', 'Filename',
+                     'Skin-Injection', 'Skin-Injection', 'TGOrifice'}

@@ -7,10 +7,10 @@ import pickle
 
 from tms_tg import TMSTG, EPOCHISOLATORS
 from itertools import zip_longest
-from figures.helper_figs import adjust_lim, normalize_psfr, plot_populationAvgFR, fb, plot_delay
+from figures.helper_figs import adjust_lim, normalize_psfr, plot_populationAvgFR, plot_delay
 
 
-def plot(tms, activeNeu, colParams=None, xlim=None, kind=None):
+def plot(tms, activeNeus, colParams=None, xlim=None, kind=None):
     remSelectionParams = EPOCHISOLATORS.copy()
     remSelectionParams.pop(2)
     traceConds = ({'selectionParams': {'Epoch': {'Layer': 'L23', **dict(zip_longest(remSelectionParams, [None, ]))}}},
@@ -41,22 +41,22 @@ def plot(tms, activeNeu, colParams=None, xlim=None, kind=None):
             # statistics
             animalNumsEpochNumsAndActiveNeuronNums_perCol.append((np.unique([item[0] for item in epochIndices]).size,
                                                                   len(epochIndices),
-                                                                  [activeNeu[item].sum() for item in epochIndices]))
+                                                                  [activeNeus[item].sum() for item in epochIndices]))
 
             ax[0][colIdx].set_title(colName, fontsize=8)
 
             # plot population activity
             match kind:
                 case 'Normalized':
-                    plot_populationAvgFR(normalize_psfr(tms, fb, ps_T_corrected, ps_FR, selectBlocksinfo),
-                                         ps_T_corrected, selectBlocksinfo, traceConds, zeroMTCond, activeNeu,
+                    plot_populationAvgFR(normalize_psfr(ps_T_corrected, ps_FR, selectBlocksinfo),
+                                         ps_T_corrected, selectBlocksinfo, traceConds, zeroMTCond, activeNeus,
                                          ax[0][colIdx], colorsPlt,
                                          [item['selectionParams']['Epoch']['Layer'] for item in traceConds])
                     if colIdx == 0:
                         ax[0][colIdx].set_ylabel('Normalized\nfiring rate', fontsize=8)
                 case _:
                     plot_populationAvgFR(ps_FR,
-                                         ps_T_corrected, selectBlocksinfo, traceConds, zeroMTCond, activeNeu,
+                                         ps_T_corrected, selectBlocksinfo, traceConds, zeroMTCond, activeNeus,
                                          ax[0][colIdx], colorsPlt,
                                          [item['selectionParams']['Epoch']['Layer'] for item in traceConds])
                     if colIdx == 0:
@@ -66,7 +66,7 @@ def plot(tms, activeNeu, colParams=None, xlim=None, kind=None):
                 ax[0][colIdx].legend(fontsize=6)
 
             # plot delay
-            plot_delay(delays, ax, colParams, colIdx, tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeu,
+            plot_delay(delays, ax, colParams, colIdx, tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeus,
                        swarmplotsize=1)
             ax[1][colIdx].set_xticks([0, 1, 2, 3],
                                      labels=[item['selectionParams']['Epoch']['Layer'] for item in traceConds])

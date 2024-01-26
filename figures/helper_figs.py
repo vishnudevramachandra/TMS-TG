@@ -35,7 +35,7 @@ def ascertain_colName_from_colParams(colParams):
     return colName
 
 
-def normalize_psfr(tms, fb, ps_T_corrected, ps_FR, blocksInfo):
+def normalize_psfr(ps_T_corrected, ps_FR, blocksInfo):
     LATE_COMP_TIMEWIN = (5, 50)  # in msecs
     PARAMS = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==1'}}
     _, mtBlocksIdx = fb(blocksInfo, PARAMS)

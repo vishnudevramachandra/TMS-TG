@@ -4,14 +4,14 @@ import pandas as pd
 from statistics import mean, mode
 import os
 import re
-from typing import Optional
+from typing import Optional, Any
 from itertools import zip_longest
 from functools import lru_cache, cached_property
 import scipy
 
 import lib.matpy as mp
 import lib.helper_tms_tg as th
-from lib.constants import LAYERS, REGIONS, EPOCHISOLATORS, COLS_WITH_STRINGS, COLS_WITH_FLOATS
+from lib.constants import LAYERS, REGIONS, EPOCHISOLATORS, COLS_WITH_STRINGS, COLS_WITH_NUMS
 from lib.dataanalysis import peristim_firingrate, peristim_timestamp
 
 
@@ -45,7 +45,7 @@ def _filter_blocks_helper(
                 fIdx &= epochIndices[item].str.contains(strings)
 
     # change the truth values of Index by doing floating point comparison on dataframe columns
-    selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_FLOATS
+    selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_NUMS
     for col in selectCols:
         string = analysis_params['selectionParams'][col]
         if re.match('<=', string):
@@ -73,6 +73,9 @@ def _filter_blocks_helper(
         else:
             fIdx &= blocksinfo[col].str.contains(strings)
 
+        # convert nan values to False
+        fIdx = fIdx == 1
+
     return blocksinfo.loc[fIdx, :], fIdx
 
 
@@ -94,6 +97,54 @@ class FilterBlocks(object):
 
     def __call__(self, blocksinfo, analysis_params, filterIndices=None):
         return _filter_blocks_helper(blocksinfo, analysis_params, filterIndices)
+
+
+def block_selector(blocksinfo: pd.DataFrame, epoch: tuple, amplitude: Optional[str] = 'MT') \
+        -> np.ndarray[Any, np.dtype[np.float64]]:
+    """
+    Selects a block from an epoch using the amplitude condition
+    Parameters
+    ----------
+    blocksinfo:     MultiIndex-ed DataFrame containing block information.
+    epoch:          index pertaining to an epoch in the DataFrame
+    amplitude:      motor threshold value of the block that needs to be selected
+
+    Returns
+    -------
+    a one element array containing the integer index
+    """
+    fb = FilterBlocks()
+    match amplitude:
+        case 'MT':
+            mtCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==1'}}
+        case 'minimum':
+            mtCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])),
+                                          'MT': f'=={blocksinfo.loc[epoch, "MT"].min()}'}}
+        case 'maximum':
+            mtCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])),
+                                          'MT': f'=={blocksinfo.loc[epoch, "MT"].max()}'}}
+        case _:
+            raise ValueError(f'epoch_selector() does not except argument \'{amplitude}\' as a value '
+                             f'for parameter "amplitude"')
+
+    _, mtIdx = fb(blocksinfo, mtCond)
+    injWithPost = (blocksinfo[list({'Skin-Injection', 'TG-Injection ', 'TGOrifice'} & set(blocksinfo.columns))]
+                   .apply(lambda x: x.str.contains('Post')).any())
+    injWithPost = injWithPost.index[injWithPost.values]
+    postCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])),
+                                    **{key: value for key, value in zip(injWithPost, ['Post'] * len(injWithPost))}}}
+    _, postIdx = fb(blocksinfo, postCond)
+    if not any(index := np.nonzero((blocksinfo.index == epoch) & mtIdx.to_numpy() & ~postIdx.to_numpy())[0]):
+        # Here its considered that only one condition was experimentally tested at a time without overlaps.
+        # Then the last 'Post' condition pertaining to the stimulus 'amplitude' is used as the index
+        postCond = [item for item in injWithPost
+                    if (blocksinfo.loc[epoch, item].str.extract('(\d+)').astype(int, errors='ignore').any().item())]
+        postT = blocksinfo[postCond[0]].str.extract('(\d+)').astype('float64')
+        postT.loc[list(set(blocksinfo.index.unique()) - {epoch})] = 0.0
+        postT[~mtIdx.to_numpy()] = 0.0
+        index = np.nonzero(postT == postT.max())[0]
+
+    return index
 
 
 class TMSTG(object):
@@ -186,10 +237,10 @@ class TMSTG(object):
         print('psts runs...........')
         th._check_trigger_numbers(self.matdata, self.blocksinfo)
         th._check_mso_order(self.matdata, self.blocksinfo)
-        selectBlocks, selectBlocksIdx = self.filter_blocks
+        selectBlocksinfo, selectBlocksinfoIdx = self.filter_blocks
 
         psTS = list()
-        for epochIndex, blockinfo in selectBlocks.iterrows():
+        for epochIndex, blockinfo in selectBlocksinfo.iterrows():
             selectTrigger = th._get_trigger_times_for_current_block(
                 self.analysis_params['peristimParams']['trigger'], self.matdata[epochIndex], blockinfo)
             timeIntervals = selectTrigger[:, np.newaxis] + np.array(self.analysis_params['peristimParams']['timeWin'])
@@ -216,10 +267,10 @@ class TMSTG(object):
         print('compute_firingrate runs...........')
         th._check_trigger_numbers(self.matdata, self.blocksinfo)
         th._check_mso_order(self.matdata, self.blocksinfo)
-        selectBlocks, selectBlocksIdx = self.filter_blocks
+        selectBlocksinfo, selectBlocksinfoIdx = self.filter_blocks
 
         ps_FR, ps_T = list(), np.array([])
-        for epochIndex, blockinfo in selectBlocks.iterrows():
+        for epochIndex, blockinfo in selectBlocksinfo.iterrows():
             selectTrigger = th._get_trigger_times_for_current_block(triggerType,
                                                                     self.matdata[epochIndex], blockinfo)
             timeIntervals = selectTrigger[:, np.newaxis] + np.array([timeWinLeftEndpoint, timeWinRightEndpoint])
@@ -239,7 +290,8 @@ class TMSTG(object):
 
         Parameters
         ----------
-        blocksinfo: [DataFrame] read infofile (having block information).
+        blocksinfo:     [DataFrame] infofile (having experimental block information).
+        matlabfnames:   [Series] having mat-file paths
 
         Returns
         -------
@@ -338,7 +390,7 @@ class TMSTG(object):
 
     def stats_is_signf_active(self,
                               ps_FR: Optional[list[np.ndarray]] = None,
-                              ps_baseline_FR: Optional[np.ndarray] = None) -> list[np.ndarray[bool]]:
+                              ps_baseline_FR: Optional[np.ndarray] = None) -> 'pd.Series[list[bool]]':
 
         if ps_FR is None and ps_baseline_FR is None:
             ps_FR, _ = self.compute_firingrate('rectangular',
@@ -354,29 +406,22 @@ class TMSTG(object):
                                                         -1,
                                                         self.analysis_params['peristimParams']['trigger'])
             selectBlocksinfo, selectBlocksinfoIdx = self.filter_blocks
-            mtCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==1'}}
-            fb = FilterBlocks()
-            _, mtIdx = fb(selectBlocksinfo, mtCond)
 
             epochs = selectBlocksinfo.index.unique()
-            activeNeu = pd.Series(np.empty(shape=epochs.shape), index=epochs)
+            activeNeus = pd.Series(np.empty(shape=epochs.shape), index=epochs)
             for epoch in epochs:
-                indices = np.where((selectBlocksinfo.index == epoch) & mtIdx.to_numpy())[0]
-                if len(indices) > 0:
-                    postStimFR = ps_FR[indices[0]]
-                    baselineFR = ps_baseline_FR[indices[0]]
-                    for index in indices[1:]:
-                        postStimFR = np.append(postStimFR, ps_FR[index], axis=0)
-                        baselineFR = np.append(baselineFR, ps_baseline_FR[index], axis=0)
-                    activeNeu[epoch] = scipy.stats.ttest_ind(postStimFR.reshape(postStimFR.shape[0::2]),
-                                                             baselineFR.reshape(baselineFR.shape[0::2]),
-                                                             axis=0,
-                                                             alternative='greater').pvalue < 0.05
-                else:
-                    indices = np.where(selectBlocksinfo.index == epoch)[0]
-                    activeNeu[epoch] = np.repeat(False, ps_FR[indices[0]].shape[2], axis=0)
+                index = block_selector(selectBlocksinfo, epoch, amplitude='MT')
+                assert len(index) < 2, f'epoch {epoch} has more than one MT cond, not correct'
+                if len(index) == 0:
+                    index = block_selector(selectBlocksinfo, epoch, amplitude='maximum')
+                postStimFR = ps_FR[index.item()]
+                baselineFR = ps_baseline_FR[index.item()]
+                activeNeus[epoch] = scipy.stats.ttest_ind(postStimFR.reshape(postStimFR.shape[0::2]),
+                                                          baselineFR.reshape(baselineFR.shape[0::2]),
+                                                          axis=0,
+                                                          alternative='greater').pvalue < 0.05
 
-        return activeNeu
+        return activeNeus
 
     @lru_cache(maxsize=None)
     def singleUnitsSpikeTimes(self, epochIndex) -> 'nb.typed.List':
@@ -496,11 +541,12 @@ if __name__ == '__main__':
     #                                            'MT': '>=1.2',
     #                                            'RecArea ': ('VPM', 'PO', 'VM', 'VPL')}}
 
-    meanPSFR, t, meanBaselineFR, _ = tms.avg_FR_per_neuron()
     activeNeu = tms.stats_is_signf_active()
     selectBlocks, selectBlocksIdx = tms.filter_blocks
     flat_activeNeu = np.empty(shape=0, dtype=bool)
     [flat_activeNeu := np.append(flat_activeNeu, activeNeu[item]) for item in selectBlocks.index]
+
+    meanPSFR, t, meanBaselineFR, _ = tms.avg_FR_per_neuron()
     delays = tms.late_comp.compute_delay(meanPSFR[:, flat_activeNeu],
                                          t,
                                          meanPSFR[t < 0, :].max(axis=0, keepdims=True)[:, flat_activeNeu],
