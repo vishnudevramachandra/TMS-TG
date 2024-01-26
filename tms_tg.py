@@ -128,21 +128,22 @@ def block_selector(blocksinfo: pd.DataFrame, epoch: tuple, amplitude: Optional[s
                              f'for parameter "amplitude"')
 
     _, mtIdx = fb(blocksinfo, mtCond)
-    injWithPost = (blocksinfo[list({'Skin-Injection', 'TG-Injection ', 'TGOrifice'} & set(blocksinfo.columns))]
-                   .apply(lambda x: x.str.contains('Post')).any())
-    injWithPost = injWithPost.index[injWithPost.values]
-    postCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])),
-                                    **{key: value for key, value in zip(injWithPost, ['Post'] * len(injWithPost))}}}
-    _, postIdx = fb(blocksinfo, postCond)
+    injTypesPresent = list({'Skin-Injection', 'TG-Injection ', 'TGOrifice'} & set(blocksinfo.columns))
+    postIdx = mtIdx.apply(lambda x: False)
+    for injType in injTypesPresent:
+        postIdx |= fb(blocksinfo, {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])),
+                                                       injType: 'Post'}})[1]
+
     if not any(index := np.nonzero((blocksinfo.index == epoch) & mtIdx.to_numpy() & ~postIdx.to_numpy())[0]):
-        # Here its considered that only one condition was experimentally tested at a time without overlaps.
-        # Then the last 'Post' condition pertaining to the stimulus 'amplitude' is used as the index
-        postCond = [item for item in injWithPost
-                    if (blocksinfo.loc[epoch, item].str.extract('(\d+)').astype(int, errors='ignore').any().item())]
-        postT = blocksinfo[postCond[0]].str.extract('(\d+)').astype('float64')
-        postT.loc[list(set(blocksinfo.index.unique()) - {epoch})] = 0.0
-        postT[~mtIdx.to_numpy()] = 0.0
-        index = np.nonzero(postT == postT.max())[0]
+        # Here its considered that only one condition was experimentally tested at a time without overlaps, so extract
+        # it. Then the last 'Post' condition pertaining to the stimulus 'amplitude' is used as the index
+        injWithPost = blocksinfo.loc[epoch, injTypesPresent].apply(lambda x: x.str.contains('Post')).any()
+        injWithPost = injWithPost.index[injWithPost.values]
+        if len(injWithPost) > 0:
+            postT = blocksinfo[injWithPost.item()].str.extract('(\d+)').astype('float64')
+            postT.loc[list(set(blocksinfo.index.unique()) - {epoch})] = 0.0
+            postT[~mtIdx.to_numpy()] = 0.0
+            index = np.nonzero(postT == postT.max())[0]
 
     return index
 
@@ -186,6 +187,8 @@ class TMSTG(object):
     def __init__(self, matdata=None, blocksinfo=None) -> None:
         self.matdata: Optional['pd.Series[mp.MATdata]'] = matdata.sort_index()
         self.blocksinfo: Optional[pd.DataFrame] = blocksinfo.sort_index()
+        th._check_trigger_numbers(self.matdata, self.blocksinfo)
+        th._check_and_sort_mso_order(self.matdata, self.blocksinfo)
 
     @classmethod
     def load(cls, groupinfofilePath: str) -> 'TMSTG':
@@ -235,8 +238,6 @@ class TMSTG(object):
 
         """
         print('psts runs...........')
-        th._check_trigger_numbers(self.matdata, self.blocksinfo)
-        th._check_mso_order(self.matdata, self.blocksinfo)
         selectBlocksinfo, selectBlocksinfoIdx = self.filter_blocks
 
         psTS = list()
@@ -265,8 +266,6 @@ class TMSTG(object):
         """
 
         print('compute_firingrate runs...........')
-        th._check_trigger_numbers(self.matdata, self.blocksinfo)
-        th._check_mso_order(self.matdata, self.blocksinfo)
         selectBlocksinfo, selectBlocksinfoIdx = self.filter_blocks
 
         ps_FR, ps_T = list(), np.array([])
@@ -414,6 +413,7 @@ class TMSTG(object):
                 assert len(index) < 2, f'epoch {epoch} has more than one MT cond, not correct'
                 if len(index) == 0:
                     index = block_selector(selectBlocksinfo, epoch, amplitude='maximum')
+                    assert len(index) < 2, f'epoch {epoch} has more than one MT cond, not correct'
                 postStimFR = ps_FR[index.item()]
                 baselineFR = ps_baseline_FR[index.item()]
                 activeNeus[epoch] = scipy.stats.ttest_ind(postStimFR.reshape(postStimFR.shape[0::2]),
@@ -529,9 +529,6 @@ class TMSTG(object):
 if __name__ == '__main__':
     animalList = r'G:\Vishnu\data\TMSTG\animalList.xlsx'
     tms = TMSTG.load(animalList)
-
-    th._check_trigger_numbers(tms.matdata, tms.blocksinfo)
-    th._check_mso_order(tms.matdata, tms.blocksinfo)
 
     tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'MC',
                                                          'Layer': 'L5'},

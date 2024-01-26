@@ -172,7 +172,7 @@ def _rowExpander(s):
     return pd.Series(ret, index=s.index)
 
 
-def _check_mso_order(matdata, blocksinfo) -> None:
+def _check_and_sort_mso_order(matdata, blocksinfo) -> None:
     epochIndices = blocksinfo.index.unique().to_numpy()
     for epochIndex in epochIndices:
         if any([re.search(r'/', item) for item in
