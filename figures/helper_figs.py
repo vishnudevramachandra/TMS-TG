@@ -1,10 +1,9 @@
 import numpy as np
 from itertools import zip_longest
-import seaborn as sns
+import pandas as pd
 import copy
 
 from tms_tg import EPOCHISOLATORS, FilterBlocks
-
 
 fb = FilterBlocks()
 
@@ -98,7 +97,7 @@ def exclude_corrupt_traces(avgPSActivity):
     return np.delete(avgPSActivity, avgPSActivity.max(axis=0) > 20, axis=1)
 
 
-def plot_populationAvgFR(psActivity, ps_T_corrected, selectBlocksinfo, traceConds, zeroMTCond, activeNeu,
+def plot_populationAvgFR(psActivity, ps_T_corrected, selectBlocksinfo, zeroMTCond, activeNeus, traceConds,
                          ax, colorsPlt, labels=None):
     _, zeroMTIdx = fb(selectBlocksinfo, zeroMTCond)
 
@@ -107,12 +106,12 @@ def plot_populationAvgFR(psActivity, ps_T_corrected, selectBlocksinfo, traceCond
         intIndices = np.where(blockIdx)[0]
         if len(intIndices) >= 1:
             index = intIndices[0]
-            avgPSActivity = psActivity[index][:, :, (activeNeu[blockIdx.index[index]]
-                                                     if activeNeu[blockIdx.index[index]].size > 1
-                                                     else activeNeu[blockIdx.index[index]][np.newaxis])].mean(axis=0)
+            avgPSActivity = psActivity[index][:, :, (activeNeus[blockIdx.index[index]]
+                                                     if activeNeus[blockIdx.index[index]].size > 1
+                                                     else activeNeus[blockIdx.index[index]][np.newaxis])].mean(axis=0)
             for index in intIndices[1:]:
-                boolIndex = activeNeu[blockIdx.index[index]] if activeNeu[blockIdx.index[index]].size > 1 \
-                    else activeNeu[blockIdx.index[index]][np.newaxis]
+                boolIndex = activeNeus[blockIdx.index[index]] if activeNeus[blockIdx.index[index]].size > 1 \
+                    else activeNeus[blockIdx.index[index]][np.newaxis]
                 avgPSActivity = np.append(avgPSActivity,
                                           psActivity[index][:, :, boolIndex].mean(axis=0),
                                           axis=1)
@@ -126,44 +125,60 @@ def plot_populationAvgFR(psActivity, ps_T_corrected, selectBlocksinfo, traceCond
                             labels[i] if labels is not None else labels)
 
 
-def compute_delay(tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeu):
-    delays = list()
+def compute_delay(tms, activeNeus, excludeConds):
     meanPSFR, t, meanBaselineFR, _ = tms.avg_FR_per_neuron(squeezeDim=False)
-    _, zeroMTIdx = fb(selectBlocksinfo, zeroMTCond)
-    for i in range(len(traceConds)):
-        blocksInfo, blockIdx = fb(selectBlocksinfo, traceConds[i], ~zeroMTIdx)
-        if blockIdx.sum() > 0:
-            boolIndex = [activeNeu[item] if activeNeu[item].size > 1 else activeNeu[item][np.newaxis]
-                         for item in blocksInfo.index]
-            selectMeanPSFR = np.concatenate([meanPSFR[n][:, :, item][0, :, :]
-                                             for n, item in zip(np.flatnonzero(blockIdx), boolIndex)],
-                                            axis=1)
-            d = tms.late_comp.compute_delay(selectMeanPSFR,
-                                            t,
-                                            selectMeanPSFR[t < 0, :].max(axis=0, keepdims=True),
-                                            tms.analysis_params['peristimParams']['smoothingParams'][
-                                                'width'] + 0.25)
-            if np.isnan(d).sum() != len(d):
-                delays.append(d[~np.isnan(d)])
-            else:
-                delays.append(np.array([np.nan, np.nan]))
+    selectBlocksinfo, selectBlocksinfoIdx = tms.filter_blocks
+    excludeIdx = pd.Series(False, index=selectBlocksinfo.index)
+    for excludeCond in excludeConds:
+        excludeIdx |= fb(selectBlocksinfo, excludeCond)[1]
 
+    if all(excludeIdx):
+        return None
+
+    boolIndex = [activeNeus[item] if activeNeus[item].size > 1 else activeNeus[item][np.newaxis]
+                 for item in selectBlocksinfo.loc[~excludeIdx].index]
+    if ('delay' in tms.blocksinfo.columns and
+            all(d := map(lambda dic: dic.get(tms.late_comp.delayMethod, None) if isinstance(dic, dict) else None,
+                         tms.blocksinfo.loc[selectBlocksinfo.loc[~excludeIdx].index, 'delay']))):
+        return np.concatenate([d if len(d) > 1 else np.array(d)[np.newaxis] for item in d])[np.concatenate(boolIndex)]
+    selectMeanPSFR = np.concatenate([meanPSFR[n][0, :, :] for n in np.flatnonzero(~excludeIdx)],
+                                    axis=1)
+    d = tms.late_comp.compute_delay(selectMeanPSFR,
+                                    t,
+                                    selectMeanPSFR[t < 0, :].max(axis=0, keepdims=True),
+                                    tms.analysis_params['peristimParams']['smoothingParams'][
+                                        'width'] + 0.25)
+
+    # append or add values to 'delay' column of blocksinfo
+    stopIdx = np.cumsum([item.shape[2] for item in meanPSFR])
+    for idx, sIdx in zip(excludeIdx[~excludeIdx].index, zip(np.concatenate([[0, ], stopIdx[:-1]]), stopIdx)):
+        if isinstance(tms.blocksinfo.loc[idx, 'Delay'], dict):
+            tms.blocksinfo.loc[idx, 'Delay'][tms.late_comp.delayMethod] = d[sIdx[0]:sIdx[1]]
         else:
-            delays.append(np.array([np.nan, np.nan]))
+            tms.blocksinfo.loc[idx, 'Delay'] = {tms.late_comp.delayMethod: d[sIdx[0]:sIdx[1]]}
 
-    return delays
+    return d[np.concatenate(boolIndex)]
 
-
-def plot_delay(delays, ax, colParams, colIdx, tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeu,
-               swarmplotsize=3):
-    delays.update(
-        {ascertain_colName_from_colParams(colParams[colIdx]):
-             {key: delay for key, delay in zip([ascertain_colName_from_colParams(item) for item in traceConds],
-                                               compute_delay(tms, selectBlocksinfo, zeroMTCond, traceConds,
-                                                             activeNeu))}})
-    sns.swarmplot(data=list(delays[ascertain_colName_from_colParams(colParams[colIdx])].values()),
-                  color='k', size=swarmplotsize, ax=ax[1][colIdx])
-    sns.violinplot(data=list(delays[ascertain_colName_from_colParams(colParams[colIdx])].values()),
-                   inner=None, ax=ax[1][colIdx])
-
-    pass
+    # _, zeroMTIdx = fb(selectBlocksinfo, zeroMTCond)
+    # for i in range(len(traceConds)):
+    #     blocksInfo, blockIdx = fb(selectBlocksinfo, traceConds[i], ~zeroMTIdx)
+    #     if blockIdx.sum() > 0:
+    #         boolIndex = [activeNeu[item] if activeNeu[item].size > 1 else activeNeu[item][np.newaxis]
+    #                      for item in blocksInfo.index]
+    #         selectMeanPSFR = np.concatenate([meanPSFR[n][:, :, item][0, :, :]
+    #                                          for n, item in zip(np.flatnonzero(blockIdx), boolIndex)],
+    #                                         axis=1)
+    #         d = tms.late_comp.compute_delay(selectMeanPSFR,
+    #                                         t,
+    #                                         selectMeanPSFR[t < 0, :].max(axis=0, keepdims=True),
+    #                                         tms.analysis_params['peristimParams']['smoothingParams'][
+    #                                             'width'] + 0.25)
+    #         if np.isnan(d).sum() != len(d):
+    #             delays.append(d[~np.isnan(d)])
+    #         else:
+    #             delays.append(np.array([np.nan, np.nan]))
+    #
+    #     else:
+    #         delays.append(np.array([np.nan, np.nan]))
+    #
+    # return delays

@@ -1,11 +1,12 @@
 import numpy as np
 import pandas as pd
 import re
-from functools import lru_cache, wraps
+from functools import lru_cache, wraps, reduce
 from lib.constants import COLS_WITH_STRINGS
 import scipy
 import warnings
 from typing import Optional, Any
+import copy
 
 
 class AnalysisParams(object):
@@ -91,12 +92,12 @@ class AnalysisParams(object):
 
                     if 'trigger' in params['peristimParams'].keys():
                         # TODO: random trigger implementation
-                        pass
+                        raise PermissionError('trigger cannot be set for analysis_params')
                     else:
                         params['peristimParams']['trigger'] = self.analysis_params['peristimParams']['trigger']
 
                     if 'baselinetimeWin' in params['peristimParams'].keys():
-                        pass
+                        raise PermissionError('baselinetimeWin cannot be set for analysis_params')
                     else:
                         params['peristimParams']['baselinetimeWin'] \
                             = self.analysis_params['peristimParams']['baselinetimeWin']
@@ -125,10 +126,10 @@ class AnalysisParams(object):
         return self.analysis_params
 
 
-def _get_trigger_times_for_current_block(trigType, matdatum, blockinfo):
+def _get_trigger_times_for_current_block(trigType, matdatum, trigIndices):
     if trigType == 'TMS':
         trigger = _read_trigger(matdatum)
-        return trigger[blockinfo['TrigIndices']]
+        return trigger[trigIndices]
     else:
         ...  # TODO: random trigger implementation
 
@@ -209,18 +210,18 @@ def _check_and_sort_mso_order(matdata, blocksinfo) -> None:
                 assert len(index) == len(infofileFilenames), \
                     f'The filenames in blocksinfo for epoch {epochIndex} do not match combiMCDFnames'
                 df = blocksinfo.loc[epochIndex, :].copy().reset_index(drop=True)
-                df = df.apply(_rowExpander, axis=1)
-                df = df.explode(['MSO ', 'no. of Trigs', 'Stimpulses', 'Filename', 'Queries ', 'Comments', 'Time'])
+                df = df.apply(_rowExpander, axis=1).explode(
+                    ['MSO ', 'no. of Trigs', 'Stimpulses', 'Filename', 'Queries ', 'Comments', 'Time'])
                 df[blocksinfo.index.names] = pd.DataFrame([epochIndex] * df.shape[0])
                 argsort = [np.nonzero(df.Filename.str.fullmatch(item))[0][0] for item in fnames]
                 df = df.iloc[argsort].set_index(blocksinfo.index.names)
                 df.drop(columns=['TrigIndices', 'MSO_order'], inplace=True)
-                blocksinfo.loc[epochIndex, :] = _edit_blocksinfo(df, 'TrigIndices')
+                blocksinfo.loc[epochIndex, :] = _edit_blocksinfo(df.copy(deep=False), 'TrigIndices')
 
 
 def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[Any] = None) -> None:
     """
-    Adds a new column to passed DataFrame
+    Adds a new column to the passed DataFrame
 
     Parameters
     ----------
@@ -259,12 +260,14 @@ def _rowCombiner(subf, cols):
 
 def _edit_blocksinfo(blocksinfo: pd.DataFrame, cond: str) -> pd.DataFrame:
     """
-    Edits blocksinfo so that each row pertains to a unique experimental condition
+    Edits blocksinfo so that each row now pertains to a unique experimental condition. During this process additional
+    information needs to be appended in a column, whose name has to be provided.
+    Note: As a side effect extra columns will be appended
 
     Parameters
     ----------
     blocksinfo:     MultiIndex-ed [DataFrame] containing block information
-    cond:           new info added to dataframe
+    cond:           name of additional info appended to dataframe
 
     Returns
     -------
@@ -295,6 +298,48 @@ def _edit_blocksinfo(blocksinfo: pd.DataFrame, cond: str) -> pd.DataFrame:
     return (gp.apply(lambda x: _rowCombiner(x, gpExcludeCols)).
             reset_index(level=list(np.setdiff1d(blocksinfo.columns, gpExcludeCols)))
             [blocksinfo.columns])
+
+
+def merge_selectionParams(lSelParams: dict, rSelParams: dict, kind='Outer') -> dict:
+    def merge_outer(lvalue, rvalue):
+        if lvalue is not None and rvalue is not None:
+            if isinstance(lvalue, tuple):
+                return tuple(set(lvalue) | set(rvalue)) if isinstance(rvalue, tuple) else tuple(set(lvalue) | {rvalue})
+            else:
+                return tuple({lvalue} | set(rvalue)) if isinstance(rvalue, tuple) else tuple({lvalue} | {rvalue})
+        else:
+            return lvalue if rvalue is None else rvalue
+
+    def paths(tree, cur=()):
+        if not isinstance(tree, dict):
+            yield cur
+        else:
+            for k, s in tree.items():
+                for p in paths(s, cur + (k,)):
+                    yield p
+
+    def set_nested_dict(tree, p, value):
+        reduce(lambda d, k: d.setdefault(k, {} if k != p[-1] else value), p, tree)
+        pass
+
+    merged = dict()
+    match kind:
+        case 'Outer':
+            for path in paths(lSelParams):
+                if path[0] in {'Epoch'} | COLS_WITH_STRINGS:
+                    set_nested_dict(merged, path, merge_outer(reduce(lambda d, k: d.get(k, None), path, lSelParams),
+                                                              reduce(lambda d, k: d.get(k, None), path, rSelParams)))
+                else:
+                    set_nested_dict(merged, path, reduce(lambda d, k: d.get(k, None), path, lSelParams))
+
+            for key, subtree in rSelParams.items():
+                if key not in merged.keys():
+                    merged[key] = subtree
+
+        case _:
+            raise NotImplementedError(f'merging of selectionParams is not implemented for kind=\'{kind}\'')
+
+    return merged
 
 
 class LateComponent(object):

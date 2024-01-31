@@ -50,79 +50,84 @@ def plot(tms, activeNeus, kind=None, colParams=None, xlim=None, epochAndNeuron=N
         selectBlocksinfo, selectBlocksinfoIdx = tms.filter_blocks
         epochIndices = selectBlocksinfo.index.unique()
 
-        if any(selectBlocksinfoIdx):
-            # select an epoch and a neuron for plotting
-            sampleBlocksinfo, sampleEpochIndex, neuIdx = (
-                selectEpochAndNeuron(None if epochAndNeuron is None else epochAndNeuron[colIdx],
-                                     tms, epochIndices, activeNeus, colParams[colIdx]))
+        if not any(selectBlocksinfoIdx):
+            print(f'Cannot plot for {colParams[colIdx]} as the associated data is missing in this group of animals')
+            continue
 
-            # get the index of zeroMT ('MT' == 0) in order to exclude it from further selection (e.g., 'MT' <= 1)
-            _, zeroMTIdx = fb(sampleBlocksinfo, zeroMTCond)
+        # select an epoch and a neuron for plotting
+        sampleBlocksinfo, sampleEpochIndex, neuIdx = (
+            selectEpochAndNeuron(None if epochAndNeuron is None else epochAndNeuron[colIdx],
+                                 tms, epochIndices, activeNeus, colParams[colIdx]))
 
-            # select peristimulus timestamps and firing-rates pertaining to sampled epoch
-            samplePSTS = compute_raster(tms, tuple(sampleBlocksinfo.index.to_numpy()))
-            if kind in ('rasterAndPsfr', 'rasterAndPopulationAvgFR'):
-                samplePSFR, ps_T = tms.compute_firingrate(
-                    *tms.analysis_params['peristimParams']['smoothingParams'].values(),
-                    *tms.analysis_params['peristimParams']['timeWin'],
-                    tms.analysis_params['peristimParams']['trigger'])
-                sampleBaselineFR, ps_baseline_T = (
-                    tms.compute_firingrate('rectangular',
-                                           np.diff(tms.analysis_params['peristimParams']['baselinetimeWin']).item(
-                                               0),
-                                           0.0,
-                                           mean(tms.analysis_params['peristimParams']['baselinetimeWin']),
-                                           tms.analysis_params['peristimParams']['baselinetimeWin'][1],
-                                           tms.analysis_params['peristimParams']['trigger']))
-                ps_T_corrected = tms.analysis_params['peristimParams']['timeWin'][0] + ps_T
+        # get the index of zeroMT ('MT' == 0) in order to exclude it from further selection (e.g., 'MT' <= 1)
+        _, zeroMTIdx = fb(sampleBlocksinfo, zeroMTCond)
 
-            # statistics
-            animalNumsEpochNumsAndActiveNeuronNums_perCol.append((np.unique([item[0] for item in epochIndices]).size,
-                                                                  len(epochIndices),
-                                                                  [activeNeus[item].sum() for item in epochIndices]))
+        # select peristimulus timestamps and firing-rates pertaining to sampled epoch
+        samplePSTS = compute_raster(tms, tuple(sampleBlocksinfo.index.to_numpy()))
+        if kind in ('rasterAndPsfr', 'rasterAndPopulationAvgFR'):
+            samplePSFR, ps_T = tms.compute_firingrate(
+                *tms.analysis_params['peristimParams']['smoothingParams'].values(),
+                *tms.analysis_params['peristimParams']['timeWin'],
+                tms.analysis_params['peristimParams']['trigger'])
+            sampleBaselineFR, ps_baseline_T = (
+                tms.compute_firingrate('rectangular',
+                                       np.diff(tms.analysis_params['peristimParams']['baselinetimeWin']).item(
+                                           0),
+                                       0.0,
+                                       mean(tms.analysis_params['peristimParams']['baselinetimeWin']),
+                                       tms.analysis_params['peristimParams']['baselinetimeWin'][1],
+                                       tms.analysis_params['peristimParams']['trigger']))
+            ps_T_corrected = tms.analysis_params['peristimParams']['timeWin'][0] + ps_T
 
-            rowIdx = len(rasterRowConds)
+        # statistics
+        animalNumsEpochNumsAndActiveNeuronNums_perCol.append((np.unique([item[0] for item in epochIndices]).size,
+                                                              len(epochIndices),
+                                                              [activeNeus[item].sum() for item in epochIndices]))
 
+        # --------------------------------------------------------------------------------------------------------------
+        ax[0][colIdx].set_title(sampleEpochIndex[0] + '/' + colName + 'Neu-' + str(neuIdx), fontsize=6)
+        for i in range(rowIdx := len(rasterRowConds)):
+            _, blockIdx = fb(sampleBlocksinfo, rasterRowConds[i], ~zeroMTIdx)
+            assert sum(blockIdx) >= 1, \
+                f"epoch {sampleEpochIndex} does not have MT{rasterRowConds[i]['selectionParams']['MT']} values"
+
+            # if there are multiple blocks with same rasterRowCond, select the one with maximum no. of Trigs
+            if sum(blockIdx) > 1:
+                idx = np.where(blockIdx)[0][sampleBlocksinfo.loc[blockIdx, 'no. of Trigs'].argmax()]
+                blockIdx.iloc[np.setdiff1d(np.where(blockIdx)[0], idx)] = False
+
+            if colIdx == 0:
+                ax[i][colIdx].set_ylabel(
+                    f'MT = {sampleBlocksinfo[blockIdx]["MT"].values[0]}\nTrials (N)', fontsize=8)
+
+            # ----------------------------------------------------------------------------------------------------------
             # plot raster
-            ax[0][colIdx].set_title(sampleEpochIndex[0] + '/' + colName + 'Neu-' + str(neuIdx), fontsize=6)
-            for i in range(len(rasterRowConds)):
-                _, blockIdx = fb(sampleBlocksinfo, rasterRowConds[i], ~zeroMTIdx)
-                assert sum(blockIdx) >= 1, \
-                    f"epoch {sampleEpochIndex} does not have MT{rasterRowConds[i]['selectionParams']['MT']} values"
+            ax[i][colIdx].eventplot([tms.analysis_params['peristimParams']['timeWin'][0] + item
+                                     for item in samplePSTS[np.nonzero(blockIdx)[0][0]][neuIdx]],
+                                    colors=colorsPlt[i])
 
-                # if there are multiple blocks with same rasterRowCond, select the one with maximum no. of Trigs
-                if sum(blockIdx) > 1:
-                    idx = np.where(blockIdx)[0][sampleBlocksinfo.loc[blockIdx, 'no. of Trigs'].argmax()]
-                    blockIdx.iloc[np.setdiff1d(np.where(blockIdx)[0], idx)] = False
-
-                ax[i][colIdx].eventplot([tms.analysis_params['peristimParams']['timeWin'][0] + item
-                                         for item in samplePSTS[np.nonzero(blockIdx)[0][0]][neuIdx]],
-                                        colors=colorsPlt[i])
+            # ----------------------------------------------------------------------------------------------------------
+            # plot PSFR
+            if kind == 'rasterAndPsfr':
+                selectPSFR = samplePSFR[np.nonzero(blockIdx)[0][0]]
+                plot_MeanAndSEM(selectPSFR.mean(axis=0)[:, neuIdx],
+                                selectPSFR.std(axis=0)[:, neuIdx] / np.sqrt(selectPSFR.shape[0]),
+                                ps_T_corrected,
+                                ax[rowIdx][colIdx],
+                                colorsPlt[i],
+                                f'MT = {sampleBlocksinfo[blockIdx]["MT"].mean()}')
                 if colIdx == 0:
-                    ax[i][colIdx].set_ylabel(
-                        f'MT = {sampleBlocksinfo[blockIdx]["MT"].values[0]}\nTrials (N)', fontsize=8)
+                    ax[rowIdx][colIdx].set_ylabel('Firing rate (Hz)', fontsize=8)
 
-                # plot PSFR
-                if kind == 'rasterAndPsfr':
-                    selectPSFR = samplePSFR[np.nonzero(blockIdx)[0][0]]
-                    plot_MeanAndSEM(selectPSFR.mean(axis=0)[:, neuIdx],
-                                    selectPSFR.std(axis=0)[:, neuIdx] / np.sqrt(selectPSFR.shape[0]),
-                                    ps_T_corrected,
-                                    ax[rowIdx][colIdx],
-                                    colorsPlt[i],
-                                    f'MT = {sampleBlocksinfo[blockIdx]["MT"].mean()}')
-                    if colIdx == 0:
-                        ax[rowIdx][colIdx].set_ylabel('Firing rate (Hz)', fontsize=8)
+            # ----------------------------------------------------------------------------------------------------------
+            # plot population average firing rate
+            if kind == 'rasterAndPopulationAvgFR':
+                plot_populationAvgFR(samplePSFR, ps_T_corrected, selectBlocksinfo, zeroMTCond, activeNeus,
+                                     rasterRowConds, ax[rowIdx][colIdx], colorsPlt,
+                                     [item['selectionParams']['MT'] for item in rasterRowConds])
 
-                # plot population average firing rate
-                if kind == 'rasterAndPopulationAvgFR':
-                    plot_populationAvgFR(samplePSFR,
-                                         ps_T_corrected, selectBlocksinfo, rasterRowConds, zeroMTCond, activeNeus,
-                                         ax[rowIdx][colIdx], colorsPlt,
-                                         [item['selectionParams']['MT'] for item in rasterRowConds])
-
-            if kind != 'rasterOnly':
-                ylim = [min(ax[rowIdx][colIdx].get_ylim()[0], ylim[0]), max(ax[rowIdx][colIdx].get_ylim()[1], ylim[1])]
+        if kind != 'rasterOnly':
+            ylim = [min(ax[rowIdx][colIdx].get_ylim()[0], ylim[0]), max(ax[rowIdx][colIdx].get_ylim()[1], ylim[1])]
 
     if xlim is not None:
         adjust_lim(ax, xlim, 'xlim')
@@ -137,12 +142,12 @@ def plot(tms, activeNeus, kind=None, colParams=None, xlim=None, epochAndNeuron=N
 if __name__ == '__main__':
     nb.set_num_threads(max(1, int(nb.config.NUMBA_NUM_THREADS // 1.25)))
 
-    epochs = (
-        {'selectionParams': {'Epoch': {'Region': 'MC', 'Layer': 'L5'}}},
-        {'selectionParams': {'Epoch': {'Region': 'SC', 'Layer': 'L5'}}},
-        {'selectionParams': {'Epoch': {'Region': 'thal', 'Layer': None}, 'RecArea ': 'BZ'}},
-        {'selectionParams': {'Epoch': {'Region': 'thal', 'Layer': None}, 'RecArea ': 'CZ'}},
-    )
+    # epochs = (
+    #     {'selectionParams': {'Epoch': {'Region': 'MC', 'Layer': 'L5'}}},
+    #     {'selectionParams': {'Epoch': {'Region': 'SC', 'Layer': 'L5'}}},
+    #     {'selectionParams': {'Epoch': {'Region': 'thal', 'Layer': None}, 'RecArea ': 'BZ'}},
+    #     {'selectionParams': {'Epoch': {'Region': 'thal', 'Layer': None}, 'RecArea ': 'CZ'}},
+    # )
     keys = ('Region', 'Layer', 'Animal', 'Mov', 'Depth', 'CoilHemVsRecHem')
     epochs = (
         {'selectionParams': {'Epoch': {key: value for key, value in zip_longest(keys, ('MC', 'L5'))}}},

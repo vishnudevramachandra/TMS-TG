@@ -21,19 +21,18 @@ def peristim_firingrate_decorator(fcn):
             case 'triangular':
                 @nb.jit(nopython=True)
                 def f(x):
-                    return sum(triangular(x, width=smWidth)) / (smWidth * 1e-3)
+                    return sum(triangular(x, halfwidth=smWidth / 2)) / (smWidth * 1e-3)
 
             case _:
                 @nb.jit(nopython=True)
                 def f(x):
-                    return sum(rectangular(x, width=smWidth)) / (smWidth * 1e-3)
+                    return sum(rectangular(x, halfwidth=smWidth / 2)) / (smWidth * 1e-3)
 
         step = smoothingParams['width'] * (1 - smoothingParams['overlap'])
         ps_T = np.arange(0, stats.mode(timeIntervals.ptp(axis=1))[0], step)
         ps_FR = np.zeros((timeIntervals.shape[0], len(ps_T), len(spikeTimes)), dtype=np.float_)
-        ps_FR, ps_T = fcn(ps_FR, ps_T, spikeTimes, timeIntervals, f)
 
-        return ps_FR, ps_T
+        return fcn(ps_FR, ps_T, spikeTimes, timeIntervals, f)
 
     return wrapper
 
