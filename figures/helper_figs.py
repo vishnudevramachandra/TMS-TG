@@ -1,21 +1,22 @@
 import numpy as np
 from itertools import zip_longest
-import seaborn as sns
+import pandas as pd
 import copy
+from functools import wraps
+import matplotlib
 
 from tms_tg import EPOCHISOLATORS, FilterBlocks
-
 
 fb = FilterBlocks()
 
 
 def adjust_lim(ax, lim, kind):
-    for axes in np.nditer(ax, flags=['refs_ok']):
+    for axis in np.nditer(ax, flags=['refs_ok']):
         match kind:
             case 'xlim':
-                axes.item().set_xlim(lim)
+                axis.item().set_xlim(lim)
             case 'ylim':
-                axes.item().set_ylim(lim)
+                axis.item().set_ylim(lim)
 
 
 def colName_from_dict(colName, params):
@@ -35,7 +36,7 @@ def ascertain_colName_from_colParams(colParams):
     return colName
 
 
-def normalize_psfr(tms, fb, ps_T_corrected, ps_FR, blocksInfo):
+def normalize_psfr(ps_T_corrected, ps_FR, blocksInfo):
     LATE_COMP_TIMEWIN = (5, 50)  # in msecs
     PARAMS = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==1'}}
     _, mtBlocksIdx = fb(blocksInfo, PARAMS)
@@ -98,72 +99,216 @@ def exclude_corrupt_traces(avgPSActivity):
     return np.delete(avgPSActivity, avgPSActivity.max(axis=0) > 20, axis=1)
 
 
-def plot_populationAvgFR(psActivity, ps_T_corrected, selectBlocksinfo, traceConds, zeroMTCond, activeNeu,
-                         ax, colorsPlt, labels=None):
-    _, zeroMTIdx = fb(selectBlocksinfo, zeroMTCond)
-
-    for i in range(len(traceConds)):
-        _, blockIdx = fb(selectBlocksinfo, traceConds[i], ~zeroMTIdx)
-        intIndices = np.where(blockIdx)[0]
-        if len(intIndices) >= 1:
-            index = intIndices[0]
-            avgPSActivity = psActivity[index][:, :, (activeNeu[blockIdx.index[index]]
-                                                     if activeNeu[blockIdx.index[index]].size > 1
-                                                     else activeNeu[blockIdx.index[index]][np.newaxis])].mean(axis=0)
-            for index in intIndices[1:]:
-                boolIndex = activeNeu[blockIdx.index[index]] if activeNeu[blockIdx.index[index]].size > 1 \
-                    else activeNeu[blockIdx.index[index]][np.newaxis]
-                avgPSActivity = np.append(avgPSActivity,
-                                          psActivity[index][:, :, boolIndex].mean(axis=0),
-                                          axis=1)
-
-            # avgPSActivity = exclude_corrupt_traces(avgPSActivity)
-            plot_MeanAndSEM(avgPSActivity.mean(axis=1),
-                            avgPSActivity.std(axis=1) / np.sqrt(avgPSActivity.shape[1]),
-                            ps_T_corrected,
-                            ax,
-                            colorsPlt[i],
-                            labels[i] if labels is not None else labels)
+def compute_excludeIdx(selectBlocksinfo, excludeConds):
+    excludeIdx = pd.Series(False, index=selectBlocksinfo.index)
+    if excludeConds is not None:
+        for excludeCond in excludeConds:
+            excludeIdx |= fb(selectBlocksinfo, excludeCond)[1]
+    return excludeIdx
 
 
-def compute_delay(tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeu):
-    delays = list()
-    meanPSFR, t, meanBaselineFR, _ = tms.avg_FR_per_neuron(squeezeDim=False)
-    _, zeroMTIdx = fb(selectBlocksinfo, zeroMTCond)
-    for i in range(len(traceConds)):
-        blocksInfo, blockIdx = fb(selectBlocksinfo, traceConds[i], ~zeroMTIdx)
-        if blockIdx.sum() > 0:
-            boolIndex = [activeNeu[item] if activeNeu[item].size > 1 else activeNeu[item][np.newaxis]
-                         for item in blocksInfo.index]
-            selectMeanPSFR = np.concatenate([meanPSFR[n][:, :, item][0, :, :]
-                                             for n, item in zip(np.flatnonzero(blockIdx), boolIndex)],
-                                            axis=1)
-            d = tms.late_comp.compute_delay(selectMeanPSFR,
+def select_activity(psActivity, selectBlocksinfo, selectBlocksinfoIdx, activeNeus, excludeIdx):
+    selectBlocksinfo = selectBlocksinfo.loc[~excludeIdx]
+    return ([psActivity[i] for i in np.nonzero(~excludeIdx)[0]],
+            selectBlocksinfo,
+            list(map(lambda x: activeNeus[x] if activeNeus[x].size > 1 else activeNeus[x][np.newaxis],
+                     selectBlocksinfo.index)),
+            np.nonzero(selectBlocksinfoIdx)[0][~excludeIdx])
+
+
+def plot_populationAvgFR(tms, activeNeus, ax, kind='Average', excludeConds=None, lineLabel=None, lineColor=None):
+    psActivity, t, _, _ = tms.avg_FR_per_neuron(squeezeDim=False)
+    selectBlocksinfo, selectBlocksinfoIdx = tms.filter_blocks
+    excludeIdx = compute_excludeIdx(selectBlocksinfo, excludeConds)
+
+    if all(excludeIdx):
+        return None
+
+    if kind == 'Normalized':
+        psActivity, doneIdx = normalize_psfr(tms, psActivity, t)
+        excludeIdx |= ~doneIdx
+
+    # select items which are not marked for exclusion
+    selectpsActivity, selectBlocksinfo, selectActNeus, _ \
+        = select_activity(psActivity, selectBlocksinfo, selectBlocksinfoIdx, activeNeus, excludeIdx)
+
+    # avgPSActivity = exclude_corrupt_traces(avgPSActivity)
+    plot_MeanAndSEM(np.concatenate(selectpsActivity, axis=2)[0][:, np.concatenate(selectActNeus)].mean(axis=1),
+                    np.concatenate(selectpsActivity, axis=2)[0][:, np.concatenate(selectActNeus)].std(axis=1)
+                    / np.sqrt(sum(np.concatenate(selectActNeus))),
+                    t,
+                    ax,
+                    lineColor,
+                    lineLabel)
+
+
+def pick_delay(tms, activeNeus, excludeConds=None):
+    meanPSFR, t, _, _ = tms.avg_FR_per_neuron(squeezeDim=False)
+    selectBlocksinfo, selectBlocksinfoIdx = tms.filter_blocks
+    excludeIdx = compute_excludeIdx(selectBlocksinfo, excludeConds)
+
+    if all(excludeIdx):
+        return None
+
+    # select items which are not marked for exclusion
+    selectMeanPSFR, selectBlocksinfo, selectActNeus, selectIndices \
+        = select_activity(meanPSFR, selectBlocksinfo, selectBlocksinfoIdx, activeNeus, excludeIdx)
+
+    # Use pre-computed delay if it exists otherwise compute it
+    if 'delay' not in tms.blocksinfo.columns:
+        tms.blocksinfo['delay'] = None
+        tms.filter_blocks = None
+    delayColIdx = np.nonzero(tms.blocksinfo.columns == 'delay')[0][0]
+    d = list()
+    for idx, fIdx in enumerate(selectIndices):
+        if (tms.blocksinfo.iat[fIdx, delayColIdx] is not None
+                and tms.late_comp.delayMethod in (cell := tms.blocksinfo.iat[fIdx, delayColIdx]).keys()):
+            d.extend(cell[tms.late_comp.delayMethod])
+            continue
+
+        tmp_d = tms.late_comp.compute_delay(selectMeanPSFR[idx][0, :, :],
                                             t,
-                                            selectMeanPSFR[t < 0, :].max(axis=0, keepdims=True),
-                                            tms.analysis_params['peristimParams']['smoothingParams'][
-                                                'width'] + 0.25)
-            if np.isnan(d).sum() != len(d):
-                delays.append(d[~np.isnan(d)])
-            else:
-                delays.append(np.array([np.nan, np.nan]))
-
+                                            selectMeanPSFR[idx][0, t < 0, :].max(axis=0, keepdims=True),
+                                            tms.analysis_params['peristimParams']['smoothingParams']['width'] + 0.25)
+        if (cell := tms.blocksinfo.iat[fIdx, delayColIdx]) is not None:
+            cell[tms.late_comp.delayMethod] = tmp_d
         else:
-            delays.append(np.array([np.nan, np.nan]))
+            tms.blocksinfo.iat[fIdx, delayColIdx] = {tms.late_comp.delayMethod: tmp_d}
 
-    return delays
+        tms.filter_blocks = None
+        d.extend(tmp_d)
+
+    return np.array(d)[np.concatenate(selectActNeus)]
 
 
-def plot_delay(delays, ax, colParams, colIdx, tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeu,
-               swarmplotsize=3):
-    delays.update(
-        {ascertain_colName_from_colParams(colParams[colIdx]):
-             {key: delay for key, delay in zip([ascertain_colName_from_colParams(item) for item in traceConds],
-                                               compute_delay(tms, selectBlocksinfo, zeroMTCond, traceConds,
-                                                             activeNeu))}})
-    sns.swarmplot(data=list(delays[ascertain_colName_from_colParams(colParams[colIdx])].values()),
-                  color='k', size=swarmplotsize, ax=ax[1][colIdx])
-    sns.violinplot(data=list(delays[ascertain_colName_from_colParams(colParams[colIdx])].values()),
-                   inner=None, ax=ax[1][colIdx])
+def gb_addinfo(gbinfo, tms):
+    """
 
-    pass
+    Parameters
+    ----------
+    gbinfo      : [Dataframe] 'grand' blocksinfo from all animals
+    tms         : [Dataframe] subset of blocksinfo containing extra data as a result of some computation
+
+    Returns
+    -------
+    [Dataframe] 'grand' blocksinfo, now with added data
+    """
+    bIndicesInGBIndices = tuple(set(tms.blocksinfo.index.unique()) & set(gbinfo.index.unique()))
+    for index in bIndicesInGBIndices:
+        assert all(gbinfo.loc[index, ['MSO ', 'MT']] == tms.blocksinfo.loc[index, ['MSO ', 'MT']]), \
+            'the row order of grandBlocksinfo is dissimilar to that of tms-blocksinfo'
+        gbinfo.loc[index, 'psActivity'] = \
+            (pd.concat([gbinfo.loc[index, 'psActivity'].rename('x'),
+                        tms.blocksinfo.loc[index, 'psActivity'].rename('y')], axis=1).
+             apply(lambda s: (s.x | s.y if isinstance(s.y, dict) else s.x) if isinstance(s.x, dict) else s.y,
+                   axis=1))
+        gbinfo.loc[index, 'delay'] = \
+            (pd.concat([gbinfo.loc[index, 'delay'].rename('x'),
+                        tms.blocksinfo.loc[index, 'delay'].rename('y')], axis=1).
+             apply(lambda s: (s.x | s.y if isinstance(s.y, dict) else s.x) if isinstance(s.x, dict) else s.y,
+                   axis=1))
+
+    bIndicesMinusGBIndices = tuple(set(tms.blocksinfo.index.unique()) - set(gbinfo.index.unique()))
+    for index in bIndicesMinusGBIndices:
+        gbinfo = pd.concat([gbinfo, tms.blocksinfo.loc[index, :]], axis=0)
+
+    return gbinfo.sort_index()
+
+
+def read_psActivity(ser):
+    out = list()
+    for item in ser:
+        keys = pd.Series(list(item.keys()))
+        key = keys[keys.apply(lambda unit:
+                              np.array([x == y if isinstance(x, str) else x >= y
+                                        for x, y in zip(unit, ['gaussian', np.nan, np.nan, np.nan, 50.0, 'TMS'])])
+                              .sum()).argmax()]
+        out.append(item[key][0])
+    return out, item[key][1]
+
+
+def agg_dec(fcn):
+    @wraps(fcn)
+    def arg_filter(arg, **kwargs):
+        match fcn.__name__:
+            case 'delay_agg':
+                return fcn(arg, **kwargs)
+            case 'pkFr_agg':
+                return fcn(arg, bIdx=kwargs['bIdx'])
+
+    return arg_filter
+
+
+@agg_dec
+def delay_agg(ser, bIdx, fcn, peakWidth):
+    psFR, t = read_psActivity(ser)
+    return fcn(np.concatenate(psFR, axis=0).mean(axis=0),
+               t,
+               np.concatenate(psFR, axis=0).mean(axis=0)[t < 0, :].max(axis=0, keepdims=True),
+               peakWidth)[bIdx]
+
+
+@agg_dec
+def pkFr_agg(ser, bIdx):
+    psFR, t = read_psActivity(ser)
+    return np.concatenate(psFR, axis=0).mean(axis=0)[np.ix_(np.logical_and(t > 5.0, t <= 50.0), bIdx)].max(axis=0)
+
+
+def rotate(l: list, step: int):
+    return l[-step:] + l[:-step]
+
+
+def gp_extractor(subf, aggFcn, activeNeus, silencingType, extrcCol, postTi, tms):
+    epochIdx = subf.index.unique()
+    match silencingType:
+        case 'TG-Injection ' | 'Skin-Injection' | 'TGOrifice':
+            postT = subf[silencingType].str.extract('(\d+)').astype('float64')[0]
+            gpOut = pd.DataFrame()
+            mtTypes = subf['MT'].unique()
+            for mtType in mtTypes:
+                selectMTIdx = subf['MT'] == mtType
+                out = [subf.loc[blockIdx, extrcCol].agg(aggFcn, axis=0, bIdx=activeNeus[epochIdx].item(),
+                                                        fcn=tms.late_comp.compute_delay,
+                                                        peakWidth=
+                                                        tms.analysis_params['peristimParams']['smoothingParams'][
+                                                            'width'] + 0.25)
+                       if any(blockIdx := subf[silencingType].str.contains('Pre') & selectMTIdx)
+                       else np.repeat(np.nan, activeNeus[epochIdx].item().sum())]
+
+                for ti in postTi:
+                    blockIdx = (ti[0] <= postT) & (postT < ti[1]) & selectMTIdx
+                    if any(blockIdx):
+                        out.append(subf.loc[blockIdx, extrcCol].agg(aggFcn, axis=0, bIdx=activeNeus[epochIdx].item(),
+                                                                    fcn=tms.late_comp.compute_delay,
+                                                                    peakWidth=(tms.analysis_params['peristimParams']
+                                                                               ['smoothingParams']['width'] + 0.25)))
+                    else:
+                        out.append(np.repeat(np.nan, activeNeus[epochIdx].item().sum()))
+
+                gpOut = pd.concat((gpOut,
+                                   pd.DataFrame({key: value for key, value in zip(['Pre', *map(str, postTi), 'MT'],
+                                                                                  [*out, mtType])})))
+
+            return gpOut
+        case 'TGcut':
+            bIdx = [False] * subf.shape[0]
+            bIdx[0] = True
+            return pd.DataFrame(
+                [subf.loc[rotate(bIdx, idx), extrcCol].agg(aggFcn, axis=0, bIdx=activeNeus[epochIdx].item(),
+                                                           fcn=tms.late_comp.compute_delay,
+                                                           peakWidth=(tms.analysis_params['peristimParams']
+                                                                      ['smoothingParams']['width'] + 0.25))
+                 for idx in range(subf.shape[0])],
+                index=pd.MultiIndex.from_product([['MT'], subf.loc[:, 'MT'].to_numpy()])).T
+
+
+def violin_fill_false(ax):
+    for collection in ax.collections:
+        if isinstance(collection, matplotlib.collections.PolyCollection):
+            collection.set_edgecolor(collection.get_facecolor())
+            collection.set_facecolor('none')
+    for h in ax.legend_.legend_handles:
+        if isinstance(h, matplotlib.patches.Rectangle):
+            h.set_edgecolor(h.get_facecolor())
+            h.set_facecolor('none')
+            h.set_linewidth(1.5)

@@ -4,27 +4,27 @@ import pandas as pd
 from statistics import mean, mode
 import os
 import re
-from typing import Optional
+from typing import Optional, Any
 from itertools import zip_longest
 from functools import lru_cache, cached_property
 import scipy
 
 import lib.matpy as mp
 import lib.helper_tms_tg as th
-from lib.constants import LAYERS, REGIONS, EPOCHISOLATORS, COLS_WITH_STRINGS, COLS_WITH_FLOATS
+from lib.constants import LAYERS, REGIONS, EPOCHISOLATORS, COLS_WITH_STRINGS, COLS_WITH_NUMS
 from lib.dataanalysis import peristim_firingrate, peristim_timestamp
 
 
 def _filter_blocks_helper(
-        blocksinfo, analysis_params, activeNeu=None) -> tuple[pd.DataFrame, pd.Series]:
+        blocksinfo, analysis_params, fIdx=None) -> tuple[pd.DataFrame, pd.Series]:
     """
     Filters MultiIndex-ed blocksinfo<DataFrame> using 'selectionParams' in analysis_params
 
     Parameters
     ----------
-    blocksinfo:          MultiIndex-ed DataFrame containing block information.
+    blocksinfo:         MultiIndex-ed DataFrame containing block information.
     analysis_params:    Dict with parameters for filtering blocksinfo
-    activeNeu:          [Optional] MultiIndex-ed Series of boolean array
+    fIdx:               [Optional] MultiIndex-ed Series of boolean array
 
     Returns
     -------
@@ -32,48 +32,36 @@ def _filter_blocks_helper(
 
     """
     # initialize boolArray[True] for selecting (booleanIndexing) blocks using criterion in ['selectionParams']
-    if activeNeu is None:
-        activeNeu = blocksinfo['MSO '] == blocksinfo['MSO ']
+    if fIdx is None:
+        fIdx = blocksinfo['MSO '] == blocksinfo['MSO ']
 
     # change the truth values of Index by doing string comparison on dataframe.Index
     epochIndices = blocksinfo.index.to_frame()
     for item in EPOCHISOLATORS:
         if (strings := analysis_params['selectionParams']['Epoch'][item]) is not None:
             if isinstance(strings, tuple):
-                activeNeu &= epochIndices[item].str.contains('|'.join(strings))
+                fIdx &= epochIndices[item].str.contains('|'.join(strings))
             else:
-                activeNeu &= epochIndices[item].str.contains(strings)
+                fIdx &= epochIndices[item].str.contains(strings)
 
     # change the truth values of Index by doing floating point comparison on dataframe columns
-    selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_FLOATS
+    selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_NUMS
     for col in selectCols:
-        string = analysis_params['selectionParams'][col]
-        if re.match('<=', string):
-            val = re.sub('<=', '', string)
-            activeNeu &= blocksinfo[col] <= np.float_(val)
-        elif re.match('<', string):
-            val = re.sub('<', '', string)
-            activeNeu &= blocksinfo[col] < np.float_(val)
-        elif re.match('>=', string):
-            val = re.sub('>=', '', string)
-            activeNeu &= blocksinfo[col] >= np.float_(val)
-        elif re.match('>', string):
-            val = re.sub('>', '', string)
-            activeNeu &= blocksinfo[col] > np.float_(val)
-        elif re.match('==', string):
-            val = re.sub('==', '', string)
-            activeNeu &= blocksinfo[col] == np.float_(val)
+        fIdx &= th.comparator(blocksinfo[col], analysis_params['selectionParams'][col])
 
     # change the truth values of Index by doing string comparison on dataframe columns
     selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_STRINGS
     for col in selectCols:
         strings = analysis_params['selectionParams'][col]
         if isinstance(strings, tuple):
-            activeNeu &= blocksinfo[col].str.contains('|'.join(strings))
+            fIdx &= blocksinfo[col].str.contains('|'.join(strings), case=False)
         else:
-            activeNeu &= blocksinfo[col].str.contains(strings)
+            fIdx &= blocksinfo[col].str.contains(strings, case=False)
 
-    return blocksinfo.loc[activeNeu, :], activeNeu
+    # convert nan values to False
+    fIdx = fIdx == 1
+
+    return blocksinfo.loc[fIdx, :], fIdx
 
 
 class FilterBlocks(object):
@@ -86,14 +74,116 @@ class FilterBlocks(object):
 
     def __get__(self, obj, objType):
         if self.cache is None:
-            self.cache = _filter_blocks_helper(obj.blocksinfo, obj.analysis_params, activeNeu=None)
+            self.cache = _filter_blocks_helper(obj.blocksinfo, obj.analysis_params, fIdx=None)
         return self.cache[0], self.cache[1]
 
     def __set__(self, obj, value):
         self.cache = value
 
-    def __call__(self, blocksinfo, analysis_params, activeNeu=None):
-        return _filter_blocks_helper(blocksinfo, analysis_params, activeNeu)
+    def __call__(self, blocksinfo, analysis_params, filterIndices=None):
+        return _filter_blocks_helper(blocksinfo, analysis_params, filterIndices)
+
+
+def hem_CoilDir_selector(blocksinfo, index, hem, cDir):
+    def coilDir_converter(ser):
+        if ser['StimHem'] == 'RH' and any(ser['CoilDir'] == np.array(['L-R', 'LR'])):
+            return 'ML'
+        elif ser['StimHem'] == 'RH' and any(ser['CoilDir'] == np.array(['R-L', 'RL'])):
+            return 'LM'
+        elif ser['StimHem'] == 'LH' and any(ser['CoilDir'] == np.array(['L-R', 'LR'])):
+            return 'LM'
+        elif ser['StimHem'] == 'LH' and any(ser['CoilDir'] == np.array(['R-L', 'RL'])):
+            return 'ML'
+        else:
+            return ser['CoilDir']
+
+    stimHemIdx = np.nonzero(np.array(blocksinfo.columns) == 'StimHem')[0]
+    recHemIdx = np.nonzero(np.array(blocksinfo.columns) == 'RecHem')[0]
+    coilDir = blocksinfo.loc[:, ['StimHem', 'CoilDir']].apply(coilDir_converter, axis=1)
+
+    match hem:
+        case 'RH':
+            return np.logical_and(blocksinfo.iloc[index, stimHemIdx].to_numpy().ravel() == 'RH',
+                                  coilDir.iloc[index].to_numpy() == cDir)
+        case 'LH':
+            return np.logical_and(blocksinfo.iloc[index, stimHemIdx].to_numpy().ravel() == 'LH',
+                                  coilDir.iloc[index].to_numpy() == cDir)
+        case 'opposite':
+            return np.logical_and(blocksinfo.iloc[index, stimHemIdx].to_numpy().ravel()
+                                  != blocksinfo.iloc[index, recHemIdx].to_numpy().ravel(),
+                                  coilDir.iloc[index].to_numpy() == cDir)
+        case _:
+            return np.logical_and(blocksinfo.iloc[index, stimHemIdx].to_numpy().ravel()
+                                  == blocksinfo.iloc[index, recHemIdx].to_numpy().ravel(),
+                                  coilDir.iloc[index].to_numpy() == cDir)
+
+
+def block_selector(blocksinfo: pd.DataFrame, epoch: tuple, amplitude: Optional[str] = 'MT') \
+        -> np.ndarray[Any, np.dtype[np.float64]]:
+    """
+    Find out the index of the block that matches the given amplitude for a particular epoch. In case the epoch
+    contains multiple blocks with same amplitude as it happens when injections are done, then select the one prior
+    to injection, if it exists, otherwise select the last 'Post' injection block. In the additional case, where the
+    epoch contains multiple blocks with same amplitude due to different combinations of StimHem and CoilDir, select the
+    one with CoilDir == 'ML' and StimHem == RecHem.
+    Parameters
+    ----------
+    blocksinfo:     MultiIndex-ed DataFrame containing block information.
+    epoch:          index pertaining to an epoch in the DataFrame
+    amplitude:      motor threshold value of the block that needs to be selected
+
+    Returns
+    -------
+    integer index [np.ndarray 0-dim] of the selected epoch
+    """
+    fb = FilterBlocks()
+    match amplitude:
+        case 'MT':
+            mtCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==1'}}
+        case 'minimum':
+            mtCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])),
+                                          'MT': f'=={blocksinfo.loc[epoch, "MT"].min()}'}}
+        case 'maximum':
+            mtCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])),
+                                          'MT': f'=={blocksinfo.loc[epoch, "MT"].max()}'}}
+        case _:
+            raise ValueError(f'epoch_selector() does not except argument \'{amplitude}\' as a value '
+                             f'for parameter "amplitude"')
+
+    _, mtIdx = fb(blocksinfo, mtCond)
+    injTypesPresent = list({'Skin-Injection', 'TG-Injection ', 'TGOrifice'} & set(blocksinfo.columns))
+    postIdx = mtIdx.apply(lambda x: False)
+    for injType in injTypesPresent:
+        postIdx |= fb(blocksinfo, {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])),
+                                                       injType: 'Post'}})[1]
+
+    index = np.nonzero((blocksinfo.index == epoch) & mtIdx.to_numpy() & ~postIdx.to_numpy())[0]
+    if not any(index):
+        # Here its considered that only one injection condition was experimentally tested at a time, i.e., no overlaps,
+        # so extract it. Then either the last 'Post' condition pertaining to stimulus 'amplitude' is used as the index
+        # or the last 'Post' condition under the criteria CoilDir == 'ML' and StimHem == RecHem us used as the index
+        injTypesPostRelation = blocksinfo.loc[epoch, injTypesPresent].apply(
+            lambda x: x.str.contains('post', case=False)).any()
+        injWithPost = injTypesPostRelation.index[injTypesPostRelation.values]
+        if len(injWithPost) > 0:
+            postT = blocksinfo[injWithPost.item()].str.extract('(\d+)').astype('float64')
+            postT.loc[list(set(blocksinfo.index.unique()) - {epoch})] = 0.0
+            postT[~mtIdx.to_numpy()] = 0.0
+            bIdx = hem_CoilDir_selector(blocksinfo, np.nonzero(postT)[0], 'same', 'ML')
+            if any(bIdx):
+                postT.iloc[np.nonzero(postT)[0][~bIdx]] = 0.0
+            index = np.nonzero(postT == postT.max())[0]
+
+    elif len(index) > 1:
+        # Find the index that corresponds to criteria CoilDir == 'ML' and StimHem == RecHem
+        bIdx = hem_CoilDir_selector(blocksinfo, index, 'same', 'ML')
+        if any(bIdx):
+            index = index[bIdx]
+        else:
+            # criteria CoilDir == 'ML' and StimHem == RecHem non-existent. Therefore, just pick the first one.
+            index = index[0]
+
+    return index
 
 
 class TMSTG(object):
@@ -124,7 +214,7 @@ class TMSTG(object):
         'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ]))},
         'TMSArtifactParams': {'timeWin': (-0.3, 0.5)},
         'peristimParams': {'smoothingParams': {'win': 'gaussian', 'width': 1.5, 'overlap': 1 / 3},
-                           'timeWin': (-20.0, 100.0),
+                           'timeWin': (-50.0, 100.0),
                            'trigger': 'TMS',
                            'baselinetimeWin': (-50.0, -1.0)}}
 
@@ -135,6 +225,8 @@ class TMSTG(object):
     def __init__(self, matdata=None, blocksinfo=None) -> None:
         self.matdata: Optional['pd.Series[mp.MATdata]'] = matdata.sort_index()
         self.blocksinfo: Optional[pd.DataFrame] = blocksinfo.sort_index()
+        th._check_trigger_numbers(self.matdata, self.blocksinfo)
+        th._check_and_sort_mso_order(self.matdata, self.blocksinfo)
 
     @classmethod
     def load(cls, groupinfofilePath: str) -> 'TMSTG':
@@ -164,9 +256,9 @@ class TMSTG(object):
                     columns=['Unnamed: 11', 'Queries'], errors='ignore').dropna(axis=0, how='all')
                 th._concat_blocksinfo(blocksinfo, 'Animal', str(groupinfo.loc[i, 'Animal']))
                 blocksinfo = cls.do_multi_indexing(blocksinfo, animalMatlabfnames)
-                th._concat_blocksinfo(blocksinfo, 'TrigStartIdx')
+                blocksinfo = th._edit_blocksinfo(blocksinfo.copy(deep=False), 'TrigIndices')
                 cls._sort_filelist(animalMatlabfnames, blocksinfo)
-                groupMatlabfnames = pd.concat([groupMatlabfnames, animalMatlabfnames], ignore_index=True)
+                groupMatlabfnames = pd.concat([groupMatlabfnames, animalMatlabfnames])
                 groupBlocksinfo = pd.concat([groupBlocksinfo, blocksinfo])
 
         return cls(
@@ -184,14 +276,12 @@ class TMSTG(object):
 
         """
         print('psts runs...........')
-        th._check_trigger_numbers(self.matdata, self.blocksinfo)
-        th._check_mso_order(self.matdata, self.blocksinfo)
-        selectBlocks, selectBlocksIdx = self.filter_blocks
+        selectBlocksinfo, selectBlocksinfoIdx = self.filter_blocks
 
         psTS = list()
-        for epochIndex, blockinfo in selectBlocks.iterrows():
+        for epochIndex, blockinfo in selectBlocksinfo.iterrows():
             selectTrigger = th._get_trigger_times_for_current_block(
-                self.analysis_params['peristimParams']['trigger'], self.matdata[epochIndex], blockinfo)
+                self.analysis_params['peristimParams']['trigger'], self.matdata[epochIndex], blockinfo['TrigIndices'])
             timeIntervals = selectTrigger[:, np.newaxis] + np.array(self.analysis_params['peristimParams']['timeWin'])
             psTS.append(peristim_timestamp(self.singleUnitsSpikeTimes(epochIndex), timeIntervals))
 
@@ -206,28 +296,51 @@ class TMSTG(object):
                            timeWinRightEndpoint,
                            triggerType) -> tuple[list[np.ndarray], np.ndarray]:
         """
-        Compute peri-stimulus firing rate
+        Compute (trialwise) peri-stimulus firing rate
 
         Returns
         -------
-        tuple having list of peri-stimulus firing rate and a 1-D array of its timing
+        tuple with two items;
+        the first item is a list (length equaling the number of blocks after filtering)
+        of computed peri-stimulus firing rate activity
+        (each item in the list has a size of R X T X N; R equals no. of trials (repetitions) in a block,
+        T equals no. of time points for computing psfr, and N equals no. of neurons present),
+        and the second item is an 1-D array of time index
         """
+        params = (smoothingWinType, smoothingWinWidth, smoothingWinOverlap,
+                  timeWinLeftEndpoint, timeWinRightEndpoint, triggerType)
 
         print('compute_firingrate runs...........')
-        th._check_trigger_numbers(self.matdata, self.blocksinfo)
-        th._check_mso_order(self.matdata, self.blocksinfo)
-        selectBlocks, selectBlocksIdx = self.filter_blocks
 
+        if 'psActivity' not in self.blocksinfo.columns:
+            self.blocksinfo['psActivity'] = None
+            self.filter_blocks = None
+        psActivityIdx = np.nonzero(self.blocksinfo.columns == 'psActivity')[0][0]
+        selectBlocksinfo, selectBlocksinfoIdx = self.filter_blocks
         ps_FR, ps_T = list(), np.array([])
-        for epochIndex, blockinfo in selectBlocks.iterrows():
+
+        for (epochIndex, blockinfo), idx in zip(selectBlocksinfo.iterrows(), np.nonzero(selectBlocksinfoIdx)[0]):
+            if (self.blocksinfo.iat[idx, psActivityIdx] is not None
+                    and params in (cell := self.blocksinfo.iat[idx, psActivityIdx]).keys()):
+                tmp_ps_FR, ps_T = cell[params]
+                ps_FR.append(tmp_ps_FR)
+                continue
+
             selectTrigger = th._get_trigger_times_for_current_block(triggerType,
-                                                                    self.matdata[epochIndex], blockinfo)
+                                                                    self.matdata[epochIndex], blockinfo['TrigIndices'])
             timeIntervals = selectTrigger[:, np.newaxis] + np.array([timeWinLeftEndpoint, timeWinRightEndpoint])
             tmp_ps_FR, ps_T = peristim_firingrate(self.singleUnitsSpikeTimes(epochIndex),
                                                   timeIntervals,
                                                   {'win': smoothingWinType,
                                                    'width': smoothingWinWidth,
                                                    'overlap': smoothingWinOverlap})
+            ps_T += timeWinLeftEndpoint
+            if (cell := self.blocksinfo.iat[idx, psActivityIdx]) is not None:
+                cell[params] = [tmp_ps_FR, ps_T]
+            else:
+                self.blocksinfo.iat[idx, psActivityIdx] = {params: [tmp_ps_FR, ps_T]}
+
+            self.filter_blocks = None
             ps_FR.append(tmp_ps_FR)
 
         return ps_FR, ps_T
@@ -239,7 +352,8 @@ class TMSTG(object):
 
         Parameters
         ----------
-        blocksinfo: [DataFrame] read infofile (having block information).
+        blocksinfo:     [DataFrame] infofile (having experimental block information).
+        matlabfnames:   [Series] having mat-file paths
 
         Returns
         -------
@@ -270,17 +384,14 @@ class TMSTG(object):
         else:
             df.loc[:, EPOCHISOLATORS[3]] = np.nan
 
-        try:
-            if all(map(lambda x: isinstance(x, str), df['Filename'])):
-                df.loc[df['Filename'].str.contains('con'), EPOCHISOLATORS[4]] = 'contra'
-                df.loc[df['Filename'].str.contains('ips'), EPOCHISOLATORS[4]] = 'ipsi'
-            elif df['Filename'].isna().all():
-                df.loc[:, EPOCHISOLATORS[4]] = np.nan
-            else:
-                raise ValueError
-        except ValueError:
-            print(f'The infofile column \'Filename\' cannot be half empty, '
-                  f'which is the case for animal {df["Animal"][0]}')
+        if all(map(lambda x: isinstance(x, str), df['Filename'])):
+            df.loc[df['Filename'].str.contains('con'), EPOCHISOLATORS[4]] = 'contra'
+            df.loc[df['Filename'].str.contains('ips'), EPOCHISOLATORS[4]] = 'ipsi'
+        elif df['Filename'].isna().all():
+            df.loc[:, EPOCHISOLATORS[4]] = np.nan
+        else:
+            raise ValueError(f'The infofile column \'Filename\' cannot be half empty '
+                             f'which is the case for animal {df["Animal"][0]}')
 
         if not (matlabfnames.str.contains('|'.join(('same', 'opposite')))
                 | matlabfnames.str.contains('|'.join(('con', 'ips')))).any():
@@ -289,7 +400,7 @@ class TMSTG(object):
 
         df.fillna('none', inplace=True)
         df.set_index(EPOCHISOLATORS, inplace=True)
-        df.sort_index(inplace=True)
+
         return df
 
     def avg_FR_per_neuron(self, squeezeDim=True) -> tuple[np.ndarray | list, np.ndarray, np.ndarray | list, np.ndarray]:
@@ -329,56 +440,52 @@ class TMSTG(object):
 
         if squeezeDim:
             return np.asfortranarray(np.concatenate([block_psfr.mean(axis=0) for block_psfr in ps_FR], axis=1)), \
-                ps_T + self.analysis_params['peristimParams']['timeWin'][0], \
+                ps_T, \
                 np.concatenate([block_bsfr.mean(axis=0) for block_bsfr in ps_baseline_FR], axis=1), \
-                ps_baseline_T + mean(self.analysis_params['peristimParams']['baselinetimeWin'])
+                ps_baseline_T
         else:
             return [block_psfr.mean(axis=0, keepdims=True) for block_psfr in ps_FR], \
-                ps_T + self.analysis_params['peristimParams']['timeWin'][0], \
+                ps_T, \
                 [block_bsfr.mean(axis=0, keepdims=True) for block_bsfr in ps_baseline_FR], \
-                ps_baseline_T + mean(self.analysis_params['peristimParams']['baselinetimeWin'])
+                ps_baseline_T
 
     def stats_is_signf_active(self,
-                              ps_FR: Optional[list[np.ndarray]] = None,
-                              ps_baseline_FR: Optional[np.ndarray] = None) -> list[np.ndarray[bool]]:
+                              trialwise_PS_FR: Optional[list[np.ndarray]] = None,
+                              trialwise_BL_FR: Optional[list[np.ndarray]] = None) -> 'pd.Series[list[bool]]':
 
-        if ps_FR is None and ps_baseline_FR is None:
-            ps_FR, _ = self.compute_firingrate('rectangular',
-                                               49.0,
-                                               0.0,
-                                               25.5,
-                                               50.0,
-                                               self.analysis_params['peristimParams']['trigger'])
-            ps_baseline_FR, _ = self.compute_firingrate('rectangular',
-                                                        49.0,
-                                                        0.0,
-                                                        -25.5,
-                                                        -1,
-                                                        self.analysis_params['peristimParams']['trigger'])
-            selectBlocksinfo, selectBlocksinfoIdx = self.filter_blocks
-            mtCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==1'}}
-            fb = FilterBlocks()
-            _, mtIdx = fb(selectBlocksinfo, mtCond)
+        if trialwise_PS_FR is None:
+            trialwise_PS_FR, _ = self.compute_firingrate('rectangular',
+                                                         49.0,
+                                                         0.0,
+                                                         25.5,
+                                                         50.0,
+                                                         self.analysis_params['peristimParams']['trigger'])
 
-            epochs = selectBlocksinfo.index.unique()
-            activeNeu = pd.Series(np.empty(shape=epochs.shape), index=epochs)
-            for epoch in epochs:
-                indices = np.where((selectBlocksinfo.index == epoch) & mtIdx.to_numpy())[0]
-                if len(indices) > 0:
-                    postStimFR = ps_FR[indices[0]]
-                    baselineFR = ps_baseline_FR[indices[0]]
-                    for index in indices[1:]:
-                        postStimFR = np.append(postStimFR, ps_FR[index], axis=0)
-                        baselineFR = np.append(baselineFR, ps_baseline_FR[index], axis=0)
-                    activeNeu[epoch] = scipy.stats.ttest_ind(postStimFR.reshape(postStimFR.shape[0::2]),
-                                                             baselineFR.reshape(baselineFR.shape[0::2]),
-                                                             axis=0,
-                                                             alternative='greater').pvalue < 0.05
-                else:
-                    indices = np.where(selectBlocksinfo.index == epoch)[0]
-                    activeNeu[epoch] = np.repeat(False, ps_FR[indices[0]].shape[2], axis=0)
+        if trialwise_BL_FR is None:
+            trialwise_BL_FR, _ = self.compute_firingrate('rectangular',
+                                                         49.0,
+                                                         0.0,
+                                                         -25.5,
+                                                         -1,
+                                                         self.analysis_params['peristimParams']['trigger'])
 
-        return activeNeu
+        selectBlocksinfo, selectBlocksinfoIdx = self.filter_blocks
+        epochs = selectBlocksinfo.index.unique()
+        activeNeus = pd.Series(np.empty(shape=epochs.shape), index=epochs)
+        for epoch in epochs:
+            index = block_selector(selectBlocksinfo, epoch, amplitude='MT')
+            assert len(index) < 2, f'epoch {epoch} has more than one MT cond, not correct'
+            if len(index) == 0:
+                index = block_selector(selectBlocksinfo, epoch, amplitude='maximum')
+                assert len(index) < 2, f'epoch {epoch} has more than one MT cond, not correct'
+            postStimFR = trialwise_PS_FR[index.item()]
+            baselineFR = trialwise_BL_FR[index.item()]
+            activeNeus[epoch] = scipy.stats.ttest_ind(postStimFR[:, 0, :],
+                                                      baselineFR[:, 0, :],
+                                                      axis=0,
+                                                      alternative='greater').pvalue < 0.05
+
+        return activeNeus
 
     @lru_cache(maxsize=None)
     def singleUnitsSpikeTimes(self, epochIndex) -> 'nb.typed.List':
@@ -417,12 +524,13 @@ class TMSTG(object):
                 return boolArray
 
         # Use MultiIndexes of blocksinfo to set the file order
-        epochIndices = blocksinfo.index.unique().to_numpy()
+        epochIndices = blocksinfo.index.unique()
         for i, epochIndex in enumerate(epochIndices):
             matchBoolArray = lookfor_matching_fname(np.ones(len(matlabfnames), dtype=bool), *epochIndex)
             j = matchBoolArray.array.argmax()
             matlabfnames.iloc[[i, j]] = matlabfnames.iloc[[j, i]]
 
+        matlabfnames.index = epochIndices
         pass
 
     def _remove_spikes_within_TMSArtifact_timeWin(self,
@@ -487,9 +595,6 @@ if __name__ == '__main__':
     animalList = r'G:\Vishnu\data\TMSTG\animalList.xlsx'
     tms = TMSTG.load(animalList)
 
-    th._check_trigger_numbers(tms.matdata, tms.blocksinfo)
-    th._check_mso_order(tms.matdata, tms.blocksinfo)
-
     tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'MC',
                                                          'Layer': 'L5'},
                                                'MT': '>=0.9'}}
@@ -498,11 +603,12 @@ if __name__ == '__main__':
     #                                            'MT': '>=1.2',
     #                                            'RecArea ': ('VPM', 'PO', 'VM', 'VPL')}}
 
-    meanPSFR, t, meanBaselineFR, _ = tms.avg_FR_per_neuron()
     activeNeu = tms.stats_is_signf_active()
     selectBlocks, selectBlocksIdx = tms.filter_blocks
     flat_activeNeu = np.empty(shape=0, dtype=bool)
     [flat_activeNeu := np.append(flat_activeNeu, activeNeu[item]) for item in selectBlocks.index]
+
+    meanPSFR, t, meanBaselineFR, _ = tms.avg_FR_per_neuron()
     delays = tms.late_comp.compute_delay(meanPSFR[:, flat_activeNeu],
                                          t,
                                          meanPSFR[t < 0, :].max(axis=0, keepdims=True)[:, flat_activeNeu],
