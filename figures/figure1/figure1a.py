@@ -158,7 +158,7 @@ if __name__ == '__main__':
     animalList = r'G:\Vishnu\data\TMSTG\animalList.xlsx'
     tms = TMSTG.load(animalList)
     tms.analysis_params = {'peristimParams': {'timeWin': (-50.0, 350.0)}}
-    # activeNeu = tms.stats_is_signf_active()
+    #activeNeu = tms.stats_is_signf_active()
     activeNeu = pd.read_pickle("./activeNeu_Cortex")
     # plot(tms, colParams=epochs, rasterOnly=False, rasterAndPsfr=False, rasterAndPopulationAvgFR=True, xlim=[-20, 60])
     plotKinds = ('rasterOnly', 'rasterAndPsfr', 'rasterAndPopulationAvgFR')

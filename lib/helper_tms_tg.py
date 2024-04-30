@@ -6,7 +6,6 @@ from lib.constants import COLS_WITH_STRINGS
 import scipy
 import warnings
 from typing import Optional, Any
-import copy
 
 
 class AnalysisParams(object):
@@ -396,9 +395,9 @@ class LateComponent(object):
         delays = np.empty(shape=0, dtype=float)
         for colIdx in range(meanPSFR.shape[1]):
             # although the value 10 may seem arbitrary, it is appropriate for this dataset
-            minPeakHeight = 2 * meanBaselineFR[0, colIdx] if meanBaselineFR[0, colIdx] > 0.1 else 10
+            minPeakHeight = max(1.5 * meanBaselineFR[0, colIdx], 10)
             peaks, _ = scipy.signal.find_peaks(meanPSFR[:, colIdx], height=minPeakHeight, width=minPeakWidth / dt)
-            latePeaksIdx = np.argwhere(peaks >= earlyLateSeparationIdx)
+            latePeaksIdx = np.argwhere(peaks > earlyLateSeparationIdx)
             if len(latePeaksIdx) > 0:
                 delays = np.append(delays, fcn(peaks.item(latePeaksIdx.item(0)),
                                                dt,
@@ -445,6 +444,12 @@ class LateComponent(object):
         shadowPeak = find_shadowPeak(peakIdx, dt, waveform, minPeakWidth, scipy.signal.find_peaks(-df1)[0])
         if shadowPeak >= earlyLateSeparationIdx and waveform[shadowPeak] > minPeakHeight:
             peakIdx = shadowPeak
+        elif ~np.isnan(shadowPeak) and waveform[shadowPeak] > waveform[peakIdx] and (peakIdx - shadowPeak) * dt < 7.0:
+            # if preceding peak height is bigger
+            inflectionIdx = peaks[np.argwhere(peaks < shadowPeak)].max()
+            return (offset
+                    + (peaks[peaks < peakIdx].max() + 0.5 -
+                        ((waveform[inflectionIdx:inflectionIdx + 2].mean() - baselineFR) / df1[inflectionIdx])) * dt)
         inflectionIdx = peaks[np.argwhere(peaks < peakIdx)].max()
         return (offset
                 + (inflectionIdx + 0.5 -
@@ -463,4 +468,15 @@ def find_shadowPeak(peakIdx, dt, waveform, minPeakWidth, troughs):
     return np.nan
 
 
+def comparator(ser, string):
+    if re.match('<=', string):
+        return ser <= np.float_(re.sub('<=', '', string))
+    elif re.match('<', string):
+        return ser < np.float_(re.sub('<', '', string))
+    elif re.match('>=', string):
+        return ser >= np.float_(re.sub('>=', '', string))
+    elif re.match('>', string):
+        return ser > np.float_(re.sub('>', '', string))
+    elif re.match('==', string):
+        return ser == np.float_(re.sub('==', '', string))
 

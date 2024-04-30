@@ -9,7 +9,7 @@ import seaborn as sns
 from tms_tg import TMSTG, EPOCHISOLATORS
 from itertools import zip_longest
 from figures.helper_figs import (adjust_lim, plot_populationAvgFR, normalize_psfr, ascertain_colName_from_colParams,
-                                 compute_delay)
+                                 pick_delay)
 
 
 def plot(tms, activeNeus, colParam, axes, xlim=None, frKind=None, frYlim=None, delayYlim=None):
@@ -56,7 +56,7 @@ def plot(tms, activeNeus, colParam, axes, xlim=None, frKind=None, frYlim=None, d
 
     # --------------------------------------------------------------------------------------------------------------
     # plot delay
-    sns.swarmplot(data=compute_delay(tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeus),
+    sns.swarmplot(data=pick_delay(tms, selectBlocksinfo, zeroMTCond, traceConds, activeNeus),
                   color='k', size=3, ax=axes[1])
     sns.violinplot(data=list(delays[ascertain_colName_from_colParams(colParam)].values()),
                    inner=None, ax=axes[1])
@@ -113,6 +113,6 @@ if __name__ == '__main__':
     # delays.update(
     #     {ascertain_colName_from_colParams(colParam):
     #          {key: delay for key, delay in zip([ascertain_colName_from_colParams(item) for item in traceConds],
-    #                                            compute_delay(tms, selectBlocksinfo, zeroMTCond, traceConds,
+    #                                            pick_delay(tms, selectBlocksinfo, zeroMTCond, traceConds,
     #                                                          activeNeu))}})
     nb.set_num_threads(nb.config.NUMBA_DEFAULT_NUM_THREADS)
