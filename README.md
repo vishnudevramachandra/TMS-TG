@@ -1,5 +1,5 @@
 # TMS-TG
-tms_tg is a python library for analysing electrophysiological (EPhys) data collected in Giese-Schwarz lab. The main objective is to perform data collation, processing and analysis of a very large dataset in memory/computation -light manner.
+tms_tg is a python library for analysing electrophysiological (EPhys) data collected in Giese-Schwarz lab. The main objective is to perform data collation, processing and analysis of very large dataset in memory/computation -light manner.
 
 ## Features
 <ins>Memory-light</ins> \
