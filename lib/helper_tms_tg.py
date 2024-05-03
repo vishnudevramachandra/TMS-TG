@@ -9,109 +9,164 @@ from typing import Optional, Any
 
 
 class AnalysisParams(object):
-    """
-    Data descriptor that stores parameters which are used for data selection and data analysis
+    """AnalysisParams
+
+    Data descriptor for managing parameters that are used for data selection and data analysis
+
     """
 
     def __init__(self, params):
+        # Initialize the AnalysisParams object with parameters
         self.__set__(self, params)
 
     def __set__(self, obj: 'TMSTG', params):
+        # Check if the current instance is being set during 'TMSTG' instantiation
         if self == obj:
+            # If yes, set the analysis_params attribute to default parameters
             self.analysis_params = params
 
         else:
             try:
+                # Check if params is not a dictionary
                 if not isinstance(params, dict):
+                    # If not, use the previously set analysis_params
                     params = self.analysis_params
+                    # Raise a ValueError
                     raise ValueError
 
+                # Initialize a flag to track if any of the input parameters does not adhere to prescribed format
                 raiseFlag = False
 
+                # Check if selectionParams key exists in params dictionary
                 if 'selectionParams' in params.keys():
+                    # Check if 'Epoch' key exists in selectionParams
                     if 'Epoch' not in params['selectionParams'].keys() \
                             or \
                             not issubclass(type(params['selectionParams']['Epoch']), dict) \
                             or \
                             not (params['selectionParams']['Epoch'].keys()
                                  & self.analysis_params['selectionParams']['Epoch'].keys()):
+                        # If any of the conditions fail, use the default Epoch parameters
                         params['selectionParams']['Epoch'] \
                             = self.analysis_params['selectionParams']['Epoch']
+                        # Set the raiseFlag to True indicating input parameters did not adhere to prescribed format
                         raiseFlag = True
                     else:
+                        # Iterate over each epoch key
                         for epochKey in self.analysis_params['selectionParams']['Epoch']:
+                            # Check if the key exists in params
                             if epochKey in params['selectionParams']['Epoch'].keys():
+                                # Check if the value is not a tuple, set, list, ndarray, or None
                                 if not issubclass(type(params['selectionParams']['Epoch'][epochKey]),
                                                   tuple | set | list | np.ndarray | None):
+                                    # If not, convert it to a tuple
                                     params['selectionParams']['Epoch'][epochKey] \
                                         = (params['selectionParams']['Epoch'][epochKey],)
                             else:
+                                # If key doesn't exist, use previous value
                                 params['selectionParams']['Epoch'][epochKey] \
                                     = self.analysis_params['selectionParams']['Epoch'][epochKey]
 
+                    # Iterate over columns in selectionParams
                     for col in params['selectionParams'].keys() & COLS_WITH_STRINGS:
+                        # Check if the value is not a tuple, set, list, or ndarray
                         if not issubclass(type(params['selectionParams'][col]), tuple | set | list | np.ndarray):
+                            # If not, convert it to a tuple
                             params['selectionParams'][col] = (params['selectionParams'][col],)
 
                 else:
+                    # If selectionParams key doesn't exist, use previous value
                     params['selectionParams'] = self.analysis_params['selectionParams']
 
+                # Check if TMSArtifactParams key exists in params dictionary and 'timeWin' key exists in it
                 if 'TMSArtifactParams' in params.keys() and 'timeWin' in params['TMSArtifactParams'].keys():
+                    # Check if the length of timeWin is 2
                     if len(params['TMSArtifactParams']['timeWin']) == 2:
+                        # If yes, convert it to a tuple
                         params['TMSArtifactParams']['timeWin'] = tuple(params['TMSArtifactParams']['timeWin'])
+                        # Clear cache for singleUnitsSpikeTimes
                         obj.singleUnitsSpikeTimes.cache_clear()
                     else:
+                        # If not, use the previous value
                         params['TMSArtifactParams']['timeWin'] \
                             = self.analysis_params['TMSArtifactParams']['timeWin']
+                        # Set the raiseFlag to True indicating input parameters did not adhere to prescribed format
                         raiseFlag = True
                 else:
+                    # If key doesn't exist, use previous value
                     params['TMSArtifactParams'] = self.analysis_params['TMSArtifactParams']
 
+                # Check if peristimParams key exists in params dictionary
                 if 'peristimParams' in params.keys():
+                    # Check if 'smoothingParams' key exists in peristimParams
                     if 'smoothingParams' in params['peristimParams'].keys():
+                        # Get the unentered keys
                         unentered_keys = self.analysis_params['peristimParams']['smoothingParams'].keys() \
                                          - params['peristimParams']['smoothingParams'].keys()
+
+                        # Iterate over unentered keys
                         for key in unentered_keys:
+                            # Set unentered keys to default values
                             params['peristimParams']['smoothingParams'][key] \
                                 = self.analysis_params['peristimParams']['smoothingParams'][key]
+                        # Check if all smoothingParams keys are unentered
                         if unentered_keys == self.analysis_params['peristimParams']['smoothingParams'].keys():
+                            # Set the raiseFlag to True indicating input parameters did not adhere to prescribed format
                             raiseFlag = True
                     else:
+                        # If key doesn't exist, use previous value
                         params['peristimParams']['smoothingParams'] \
                             = self.analysis_params['peristimParams']['smoothingParams']
 
+                    # Check if 'timeWin' key exists in peristimParams
                     if 'timeWin' in params['peristimParams'].keys():
+                        # Check if the length of timeWin is 2
                         if len(params['peristimParams']['timeWin']) == 2:
+                            # If yes, convert it to a tuple
                             params['peristimParams']['timeWin'] = tuple(params['peristimParams']['timeWin'])
                         else:
+                            # If not, use the previous value
                             params['peristimParams']['timeWin'] = self.analysis_params['peristimParams']['timeWin']
+                            # Set the raiseFlag to True indicating input parameters did not adhere to prescribed format
                             raiseFlag = True
                     else:
+                        # If key doesn't exist, use previous value
                         params['peristimParams']['timeWin'] = self.analysis_params['peristimParams']['timeWin']
 
+                    # Check if 'trigger' key exists in peristimParams
                     if 'trigger' in params['peristimParams'].keys():
                         # TODO: random trigger implementation
                         raise PermissionError('trigger cannot be set for analysis_params')
                     else:
+                        # If key doesn't exist, use previous value
                         params['peristimParams']['trigger'] = self.analysis_params['peristimParams']['trigger']
 
+                    # Check if 'baselinetimeWin' key exists in peristimParams
                     if 'baselinetimeWin' in params['peristimParams'].keys():
+                        # Raise a PermissionError as 'baselinetimeWin' cannot be set for analysis_params
                         raise PermissionError('baselinetimeWin cannot be set for analysis_params')
                     else:
+                        # If key doesn't exist, use previous value
                         params['peristimParams']['baselinetimeWin'] \
                             = self.analysis_params['peristimParams']['baselinetimeWin']
                 else:
+                    # If key doesn't exist, use previous value
                     params['peristimParams'] = self.analysis_params['peristimParams']
 
+                # Check if raiseFlag is True
                 if raiseFlag:
+                    # If yes, raise a ValueError
                     raise ValueError
 
             except ValueError:
+                # Catch the ValueError and print a message
                 print(f'analysis_params does not adhere to correct format, '
                       f'using instead default/previous params...')
 
+            # Print the set parameters
             print('analysis_params set to: ', params)
             print('----------------------------')
+            # Set the analysis_params attribute to the updated params
             self.analysis_params = params
 
             # do housekeeping
@@ -122,17 +177,22 @@ class AnalysisParams(object):
             _, _ = obj.filter_blocks
 
     def __get__(self, obj, objType):
+        # Return the analysis parameters
         return self.analysis_params
 
 
+# Function to get trigger times for the current block
 def _get_trigger_times_for_current_block(trigType, matdatum, trigIndices):
     if trigType == 'TMS':
+        # If trigger type is 'TMS', read trigger from matdatum and return trigger times for trigIndices
         trigger = _read_trigger(matdatum)
         return trigger[trigIndices]
     else:
+        # If trigger type is not 'TMS', implement random trigger logic here
         ...  # TODO: random trigger implementation
 
 
+# Function to read trigger times from matdatum
 @lru_cache(maxsize=None)
 def _read_trigger(matdatum):
     trigChanIdx = matdatum['TrigChan_ind'][0, 0].astype(int) - 1
@@ -140,6 +200,7 @@ def _read_trigger(matdatum):
     return matdatum[refs[trigChanIdx]].flatten()[::2] * 1e3
 
 
+# Function to check trigger numbers
 def _check_trigger_numbers(matdata, blocksinfo) -> None:
     epochIndices = blocksinfo.index.unique().to_numpy()
     for epochIndex in epochIndices:
@@ -149,6 +210,7 @@ def _check_trigger_numbers(matdata, blocksinfo) -> None:
         # matdata[epochIndex][matdata[epochIndex]['CombiMCD_fnames'].flatten()[0]].tobytes().decode('utf-16')
 
 
+# Function to read MSO data
 @lru_cache(maxsize=None)
 def _read_MSO(matdatum) -> np.ndarray:
     refs = matdatum['blockInfo/MSO'].flatten()
@@ -157,6 +219,7 @@ def _read_MSO(matdatum) -> np.ndarray:
         [int(re.findall(r'\d+', item)[0]) if re.findall(r'\d+', item) else 0 for item in mso])
 
 
+# Function to expand rows of a blocksinfo record (used by explode method of pandas Dataframe)
 def _rowExpander(s):
     ret = list()
     indices = s.index
@@ -172,6 +235,7 @@ def _rowExpander(s):
     return pd.Series(ret, index=s.index)
 
 
+# Function to check and sort MSO order in blocksinfo to match the actual recording order
 def _check_and_sort_mso_order(matdata, blocksinfo) -> None:
     epochIndices = blocksinfo.index.unique().to_numpy()
     for epochIndex in epochIndices:
@@ -218,6 +282,7 @@ def _check_and_sort_mso_order(matdata, blocksinfo) -> None:
                 blocksinfo.loc[epochIndex, :] = _edit_blocksinfo(df.copy(deep=False), 'TrigIndices')
 
 
+# Function to concatenate a column to blocksinfo with provided value
 def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[Any] = None) -> None:
     """
     Adds a new column to the passed DataFrame
@@ -237,6 +302,7 @@ def _concat_blocksinfo(blocksinfo: pd.DataFrame, colName: str, value: Optional[A
         blocksinfo[colName] = value
 
 
+# Function to combine 'blocksinfo' rows that fall into the same group
 def _rowCombiner(subf, cols):
     ret = list()
     for col in cols:
@@ -299,57 +365,83 @@ def _edit_blocksinfo(blocksinfo: pd.DataFrame, cond: str) -> pd.DataFrame:
             [blocksinfo.columns])
 
 
+# Function to merge selection parameters of two instances of analysis parameters so that it adheres to prescribed format
 def merge_selectionParams(lSelParams: dict, rSelParams: dict, kind='Outer') -> dict:
     def merge_outer(lvalue, rvalue):
         if lvalue is not None and rvalue is not None:
+            # If both values are not None, return the result of set operation 'or'
             if isinstance(lvalue, tuple):
                 return tuple(set(lvalue) | set(rvalue)) if isinstance(rvalue, tuple) else tuple(set(lvalue) | {rvalue})
             else:
                 return tuple({lvalue} | set(rvalue)) if isinstance(rvalue, tuple) else tuple({lvalue} | {rvalue})
         else:
+            # If either value is None, return the non-None value
             return lvalue if rvalue is None else rvalue
 
+    # Generator function to get paths in a nested dictionary
     def paths(tree, cur=()):
+        # If tree is not a dictionary, yield the current path
         if not isinstance(tree, dict):
             yield cur
         else:
+            # Iterate through key-value pairs in the dictionary
             for k, s in tree.items():
+                # Recursively yield paths for nested dictionaries
                 for p in paths(s, cur + (k,)):
                     yield p
 
+    # Function to set value in nested dictionary at specified path
     def set_nested_dict(tree, p, value):
+        # Traverse nested dictionaries and set value at specified path
         reduce(lambda d, k: d.setdefault(k, {} if k != p[-1] else value), p, tree)
         pass
 
+    # Initialize merged dictionary
     merged = dict()
+
+    # Merge based on kind of merge
     match kind:
+        # For 'Outer' merge
         case 'Outer':
+            # Iterate through paths in lSelParams
             for path in paths(lSelParams):
                 if path[0] in {'Epoch'} | COLS_WITH_STRINGS:
+                    # Merge values from lSelParams and rSelParams at current path
                     set_nested_dict(merged, path, merge_outer(reduce(lambda d, k: d.get(k, None), path, lSelParams),
                                                               reduce(lambda d, k: d.get(k, None), path, rSelParams)))
                 else:
+                    # Set value from lSelParams at current path in merged dictionary
                     set_nested_dict(merged, path, reduce(lambda d, k: d.get(k, None), path, lSelParams))
 
+            # Add remaining keys from rSelParams to merged dictionary
             for key, subtree in rSelParams.items():
                 if key not in merged.keys():
                     merged[key] = subtree
 
+        # For other kinds of merge
         case _:
             raise NotImplementedError(f'merging of selectionParams is not implemented for kind=\'{kind}\'')
 
+    # Return merged dictionary
     return merged
 
 
 class LateComponent(object):
-    """
+    """LateComponent
+
     Class dealing with analysis of late activity
+
     """
+
+    # Available methods for computing delay
     _methodsForComputingDelay = {'threshold_crossing', 'starting_point_derived_from_slope', 'peak_as_delay'}
+    # Default method for computing delay
     _defaultMethodForComputingDelay = 'starting_point_derived_from_slope'
+    # Time point for separating early and late activity (in msecs)
     earlyLateSeparationTimePoint = 5  # in msecs
 
     def __init__(self, method=None):
+        # Initialize with default method if not specified
         self.delayMethod = LateComponent._defaultMethodForComputingDelay if method is None else method
 
     @property
@@ -358,6 +450,7 @@ class LateComponent(object):
 
     @delayMethod.setter
     def delayMethod(self, method):
+        # Set delayMethod property using the value of the 'method' parameter
         if method in self._methodsForComputingDelay:
             self._delayMethod = method
         elif hasattr(self, '_delayMethod'):
@@ -382,6 +475,8 @@ class LateComponent(object):
         -------
         array[1D] of delays (size N)
         """
+
+        # Choose the appropriate function based on the delay method
         match self.delayMethod:
             case 'baseline_crossing':
                 fcn = self.threshold_crossing
@@ -390,14 +485,21 @@ class LateComponent(object):
             case 'peak_as_delay':
                 fcn = self.peak_as_delay
 
+        # Compute the sampling interval
         dt = ps_T[1] - ps_T[0]
+        # Convert time (for separating early and late activity) to index
         earlyLateSeparationIdx = (self.earlyLateSeparationTimePoint - ps_T[0]) / dt
         delays = np.empty(shape=0, dtype=float)
         for colIdx in range(meanPSFR.shape[1]):
-            # although the value 10 may seem arbitrary, it is appropriate for this dataset
+            # Determine the minimum peak height for peak detection (although a threshold value of 10 may seem arbitrary,
+            # it is appropriate for this dataset)
             minPeakHeight = max(1.5 * meanBaselineFR[0, colIdx], 10)
+            # Find peaks in peristimulus activity
             peaks, _ = scipy.signal.find_peaks(meanPSFR[:, colIdx], height=minPeakHeight, width=minPeakWidth / dt)
+            # Filter late peaks and compute delay for each channel
             latePeaksIdx = np.argwhere(peaks > earlyLateSeparationIdx)
+
+            # Compute delay using the selected function above
             if len(latePeaksIdx) > 0:
                 delays = np.append(delays, fcn(peaks.item(latePeaksIdx.item(0)),
                                                dt,
@@ -428,6 +530,7 @@ class LateComponent(object):
     @staticmethod
     @delay_deco
     def threshold_crossing(peakIdx, dt, offset, waveform, baselineFR):
+        # Compute delay as the threshold crossing time point
         if baselineFR > 0:
             return np.max(np.argwhere(waveform[:peakIdx] <= 1.5 * baselineFR), initial=0) * dt + offset
         assert offset < 0, ('computed peristimulus firing does not have pre-stimulus activity, '
@@ -439,6 +542,7 @@ class LateComponent(object):
     @delay_deco
     def starting_point_derived_from_slope(
             peakIdx, dt, offset, waveform, baselineFR, minPeakHeight, minPeakWidth, earlyLateSeparationIdx):
+        # Compute delay as the starting point of the trajectory to the peak, derived using slope at inflection point
         df1 = np.diff(waveform, n=1)
         peaks, _ = scipy.signal.find_peaks(df1)
         shadowPeak = find_shadowPeak(peakIdx, dt, waveform, minPeakWidth, scipy.signal.find_peaks(-df1)[0])
@@ -458,9 +562,12 @@ class LateComponent(object):
     @staticmethod
     @delay_deco
     def peak_as_delay(peakIdx, dt, offset):
+        # Compute delay as the peak offset
         return (peakIdx * dt) + offset
 
 
+# Function to find shadow peak (the peak that is smaller and appears earlier but closer than separation distance
+# to the larger peak)
 def find_shadowPeak(peakIdx, dt, waveform, minPeakWidth, troughs):
     troughs = troughs[troughs < peakIdx]
     if troughs.size > 0:
@@ -468,15 +575,22 @@ def find_shadowPeak(peakIdx, dt, waveform, minPeakWidth, troughs):
     return np.nan
 
 
+# Function that compares pd.Series to number using a string containing that numeral and also the comparison symbol
 def comparator(ser, string):
+    # Check if the string pattern matches one of the given symbols
     if re.match('<=', string):
+        # Return True for elements in 'ser' that are less than or equal to the specified numeral
         return ser <= np.float_(re.sub('<=', '', string))
     elif re.match('<', string):
+        # Return True for elements in 'ser' that are less than specified numeral
         return ser < np.float_(re.sub('<', '', string))
     elif re.match('>=', string):
+        # Return True for elements in 'ser' that are greater than or equal to the specified numeral
         return ser >= np.float_(re.sub('>=', '', string))
     elif re.match('>', string):
+        # Return True for elements in 'ser' that are greater than the specified numeral
         return ser > np.float_(re.sub('>', '', string))
     elif re.match('==', string):
+        # Return True for elements in 'ser' that are equal to the specified numeral
         return ser == np.float_(re.sub('==', '', string))
 

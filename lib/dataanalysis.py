@@ -1,17 +1,25 @@
 import numpy as np
-import lib.matpy as mp
+import lib.matpy as mp      # module for handling .mat files
 import numba as nb
-from lib.math_fcns import gaussian, rectangular, triangular
 from scipy import stats
+
+# import custom 1-D functions that use parallel computing for speed-up
+from lib.math_fcns import gaussian, rectangular, triangular
 
 
 def peristim_firingrate_decorator(fcn):
-    def wrapper(spikeTimes: list[np.ndarray],
-                timeIntervals: np.ndarray,
-                smoothingParams):
-        assert spikeTimes is not None and timeIntervals is not None, 'Both spikeTimes and timeInterval cannot be None'
+    """Decorator for calculating peristimulus firing rate."""
 
-        smWidth = smoothingParams['width']  # needed as numba.jit cannot optimize dict type
+    def wrapper(spikeTimes: list[np.ndarray],
+                timeWindows: np.ndarray,
+                smoothingParams):
+        # Ensure necessary inputs are provided
+        assert spikeTimes is not None and timeWindows is not None, 'Both spikeTimes and timeWindow cannot be None'
+
+        # Extract smoothing width from parameters (needed as numba.jit cannot optimize dict type)
+        smWidth = smoothingParams['width']
+
+        # Choose smoothing function based on parameters
         match smoothingParams['win']:
             case 'gaussian':
                 @nb.jit(nopython=True)
@@ -28,11 +36,15 @@ def peristim_firingrate_decorator(fcn):
                 def f(x):
                     return sum(rectangular(x, halfwidth=smWidth / 2)) / (smWidth * 1e-3)
 
+        # Calculate time points for firing rate calculation
         step = smoothingParams['width'] * (1 - smoothingParams['overlap'])
-        ps_T = np.arange(0, stats.mode(timeIntervals.ptp(axis=1))[0], step)
-        ps_FR = np.zeros((timeIntervals.shape[0], len(ps_T), len(spikeTimes)), dtype=np.float_)
+        ps_T = np.arange(0, stats.mode(timeWindows.ptp(axis=1))[0], step)
 
-        return fcn(ps_FR, ps_T, spikeTimes, timeIntervals, f)
+        # Initialize array for storing firing rates
+        ps_FR = np.zeros((timeWindows.shape[0], len(ps_T), len(spikeTimes)), dtype=np.float_)
+
+        # Call the provided function for calculation
+        return fcn(ps_FR, ps_T, spikeTimes, timeWindows, f)
 
     return wrapper
 
@@ -40,27 +52,35 @@ def peristim_firingrate_decorator(fcn):
 @peristim_firingrate_decorator
 @nb.jit(nopython=True, parallel=True)
 def peristim_firingrate(
-        ps_FR, ps_T, spikeTimes, timeIntervals, smoothingFcn) -> tuple[np.ndarray, np.ndarray]:
-    for trl_n in nb.prange(len(timeIntervals)):
+        ps_FR, ps_T, spikeTimes, timeWindows, smoothingFcn) -> tuple[np.ndarray, np.ndarray]:
+    """Calculate peristimulus firing rate."""
+
+    for trl_n in nb.prange(len(timeWindows)):
         # loop over time steps
         for step_n, step in enumerate(ps_T):
-            step += timeIntervals[trl_n, 0]
-            # loop over neurons (use timestamps of each neuron to assign firing rate)
+            step += timeWindows[trl_n, 0]
+            # loop over neurons (also use the corresponding timestamps for that neuron)
             for i, singleUnitSpikeTimes in enumerate(spikeTimes):
-                # insert the firing rate for each neuron, for each time step, for each trial
+                # insert the firing rate for each neuron, at each time step, for each trial
                 ps_FR[trl_n, step_n, i] = smoothingFcn(singleUnitSpikeTimes - step)
     return ps_FR, ps_T
 
 
 def peristim_timestamp(
         spikeTimes: list[np.ndarray],
-        timeIntervals: np.ndarray) -> list[list[np.ndarray]]:
-    assert spikeTimes is not None and timeIntervals is not None, 'Both spikeTimes and timeInterval cannot be None'
+        timeWindows: np.ndarray) -> list[list[np.ndarray]]:
+    """Organize spike timestamps based on given time windows."""
+
+    # Ensure necessary inputs are provided
+    assert spikeTimes is not None and timeWindows is not None, 'Both spikeTimes and timeWindow cannot be None'
 
     ps_TS = []
+    # Loop over spike times
     for singleUnitSpikeTimes in spikeTimes:
         x = []
-        for ti in timeIntervals:
+        # Loop over time windows
+        for ti in timeWindows:
+            # Filter spike times within each window
             x.append(singleUnitSpikeTimes[
                          (ti[0] <= singleUnitSpikeTimes)
                          & (singleUnitSpikeTimes <= ti[1])]
@@ -71,32 +91,37 @@ def peristim_timestamp(
 
 
 if __name__ == '__main__':
-    # matfile = mp.MATfile('G:\Vishnu\Analysis\TMS-TG\data\SLAnalys.mat')
+    # Read data from .mat file
     matfile = mp.MATfile(r'G:\Vishnu\data\TMSTG\20180922\20180922_cfa_ipsi_L6_SLData_SpikeAmpTH3.0.mat')
     data = matfile.read()
 
+    # Extract trigger times
     trigChanIdx = data['TrigChan_ind'][0, 0].astype(int) - 1
     refs = data['rawData/trigger'].flatten()
     trigger = data[refs[trigChanIdx]].flatten()[::2] * 1e3
 
+    # Define time windows
     startT, endT = -20, 100
-    timeIntervals = trigger[:, np.newaxis] + np.array([startT, endT])
+    timeWindows = trigger[:, np.newaxis] + np.array([startT, endT])
 
+    # Extract spike times
     multiUnitSpikeTimes = data['SpikeModel/SpikeTimes/data'].flatten()
     refs = data['SpikeModel/ClusterAssignment/data'].flatten()
     allSpikeTimes_neuronIdx = [data[i].flatten().astype(int) - 1 for i in refs]
     singleUnitsSpikeTimes = nb.typed.List()
     [singleUnitsSpikeTimes.append(multiUnitSpikeTimes[idx]) for idx in allSpikeTimes_neuronIdx]
 
-    ps_TS = peristim_timestamp(singleUnitsSpikeTimes, timeIntervals)
+    # Organize spike timestamps based on time windows
+    ps_TS = peristim_timestamp(singleUnitsSpikeTimes, timeWindows)
 
-    # ps_FR, ps_T = peristim_firingrate(singleUnitsSpikeTimes, timeIntervals)
-
-    ps_FR, ps_T = peristim_firingrate(singleUnitsSpikeTimes, timeIntervals,
+    # Calculate peristimulus firing rate with Gaussian smoothing
+    ps_FR, ps_T = peristim_firingrate(singleUnitsSpikeTimes, timeWindows,
                                       smoothingParams={'win': 'gaussian', 'width': 3.0, 'overlap': 1 / 3})
 
-    ps_FR, ps_T = peristim_firingrate(singleUnitsSpikeTimes, timeIntervals,
-                                      avg={'win': 'gaussian', 'width': 3.0, 'overlap': 0.0})
+    # Calculate peristimulus firing rate with another set of parameters
+    ps_FR, ps_T = peristim_firingrate(singleUnitsSpikeTimes, timeWindows,
+                                      smoothingParams={'win': 'gaussian', 'width': 3.0, 'overlap': 0.0})
 
+    # Change thread settings
     # nb.set_num_threads(max(1, int(nb.config.NUMBA_NUM_THREADS // 1.25)))
     # nb.set_num_threads(nb.config.NUMBA_DEFAULT_NUM_THREADS)
