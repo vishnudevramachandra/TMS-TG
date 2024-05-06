@@ -7,9 +7,11 @@ import matplotlib
 
 from tms_tg import EPOCHISOLATORS, FilterBlocks
 
+# Instantiate a FilterBlocks object
 fb = FilterBlocks()
 
 
+# Adjust the limits of the axes
 def adjust_lim(ax, lim, kind):
     for axis in np.nditer(ax, flags=['refs_ok']):
         match kind:
@@ -19,6 +21,7 @@ def adjust_lim(ax, lim, kind):
                 axis.item().set_ylim(lim)
 
 
+# Generate column name from dictionary
 def colName_from_dict(colName, params):
     for key in params:
         if type(params[key]) == dict:
@@ -28,6 +31,7 @@ def colName_from_dict(colName, params):
     return colName
 
 
+# Ascertain column name from column parameters
 def ascertain_colName_from_colParams(colParams):
     if colParams is None:
         colName = 'All'
@@ -36,6 +40,7 @@ def ascertain_colName_from_colParams(colParams):
     return colName
 
 
+# Normalize peristimulus firing rate
 def normalize_psfr(ps_T_corrected, ps_FR, blocksInfo):
     LATE_COMP_TIMEWIN = (5, 50)  # in msecs
     PARAMS = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==1'}}
@@ -45,7 +50,7 @@ def normalize_psfr(ps_T_corrected, ps_FR, blocksInfo):
     for epochIndex in blocksInfo.index.unique():
         boolEpochIndex = blocksInfo.index == epochIndex
 
-        # take PSFR at motor threshold
+        # Take PSFR at motor threshold
         mtIndices = np.where(boolEpochIndex & mtBlocksIdx.to_numpy())[0]
         mtPSFR = ps_FR[mtIndices[0]]
         for index in mtIndices[1:]:
@@ -55,19 +60,21 @@ def normalize_psfr(ps_T_corrected, ps_FR, blocksInfo):
             (avg_mtPSFR[:, (LATE_COMP_TIMEWIN[0] <= ps_T_corrected) & (ps_T_corrected < LATE_COMP_TIMEWIN[1]), :].
              max(axis=1, keepdims=True))
 
-        # take the peak firing rate of the late component for PSFR at motor threshold and do the normalization
+        # Take the peak firing rate of the late component for PSFR at motor threshold and do the normalization
         for i in np.where(boolEpochIndex)[0]:
             normalizedPSFR[i] = ps_FR[i] / peakFR_latecomp
 
     return normalizedPSFR
 
 
+# Randomly select a neuron
 def selectNeuron(activeNeu):
     return np.random.choice(activeNeu)
 
 
+# Randomly select an epoch and a neuron for plotting
 def selectEpochAndNeuron(epochAndNeuron, tms, epochIndices, activeNeus, colParam):
-    # randomly sample an epoch that has at least one active neuron for plotting if EpochAndNeuron is None
+    # Randomly sample an epoch that has at least one active neuron for plotting if EpochAndNeuron is None
     sampleActiveNeus = [False, ]
     while not any(sampleActiveNeus):
         sampleEpochIndex = epochIndices[np.random.choice(len(epochIndices))] \
@@ -81,7 +88,7 @@ def selectEpochAndNeuron(epochAndNeuron, tms, epochIndices, activeNeus, colParam
             assert any(sampleActiveNeus), f'Epoch {sampleEpochIndex} does not have any active neurons'
             break
 
-    # randomly select a neuron for plotting raster
+    # Randomly select a neuron for plotting raster
     neuIdx = np.random.choice(sampleActiveNeus.nonzero()[0]) \
         if epochAndNeuron is None or 'neuIdx' not in epochAndNeuron.keys() else epochAndNeuron['neuIdx']
 
@@ -90,15 +97,18 @@ def selectEpochAndNeuron(epochAndNeuron, tms, epochIndices, activeNeus, colParam
     return sampleBlocksinfo, sampleEpochIndex, neuIdx
 
 
+# Plot mean and standard error of peristimulus firing rate
 def plot_MeanAndSEM(meanPSFR, semPSFR, t, ax, pltColor, lineLabel):
     ax.plot(t, meanPSFR, color=pltColor, label=lineLabel)
     ax.fill_between(t, meanPSFR - semPSFR, meanPSFR + semPSFR, alpha=0.2, color=pltColor)
 
 
+# Exclude corrupt traces from average population activity
 def exclude_corrupt_traces(avgPSActivity):
     return np.delete(avgPSActivity, avgPSActivity.max(axis=0) > 20, axis=1)
 
 
+# Compute exclude index based on selection conditions
 def compute_excludeIdx(selectBlocksinfo, excludeConds):
     excludeIdx = pd.Series(False, index=selectBlocksinfo.index)
     if excludeConds is not None:
@@ -107,6 +117,7 @@ def compute_excludeIdx(selectBlocksinfo, excludeConds):
     return excludeIdx
 
 
+# Select activity based on exclude index
 def select_activity(psActivity, selectBlocksinfo, selectBlocksinfoIdx, activeNeus, excludeIdx):
     selectBlocksinfo = selectBlocksinfo.loc[~excludeIdx]
     return ([psActivity[i] for i in np.nonzero(~excludeIdx)[0]],
@@ -116,6 +127,7 @@ def select_activity(psActivity, selectBlocksinfo, selectBlocksinfoIdx, activeNeu
             np.nonzero(selectBlocksinfoIdx)[0][~excludeIdx])
 
 
+# Plot population average firing rate
 def plot_populationAvgFR(tms, activeNeus, ax, kind='Average', excludeConds=None, lineLabel=None, lineColor=None):
     psActivity, t, _, _ = tms.avg_FR_per_neuron(squeezeDim=False)
     selectBlocksinfo, selectBlocksinfoIdx = tms.filter_blocks
@@ -128,7 +140,7 @@ def plot_populationAvgFR(tms, activeNeus, ax, kind='Average', excludeConds=None,
         psActivity, doneIdx = normalize_psfr(tms, psActivity, t)
         excludeIdx |= ~doneIdx
 
-    # select items which are not marked for exclusion
+    # Select items which are not marked for exclusion
     selectpsActivity, selectBlocksinfo, selectActNeus, _ \
         = select_activity(psActivity, selectBlocksinfo, selectBlocksinfoIdx, activeNeus, excludeIdx)
 
@@ -142,6 +154,7 @@ def plot_populationAvgFR(tms, activeNeus, ax, kind='Average', excludeConds=None,
                     lineLabel)
 
 
+# Retrieve or compute-and-retrieve delay based on peristimulus activity
 def pick_delay(tms, activeNeus, excludeConds=None):
     meanPSFR, t, _, _ = tms.avg_FR_per_neuron(squeezeDim=False)
     selectBlocksinfo, selectBlocksinfoIdx = tms.filter_blocks
@@ -150,7 +163,7 @@ def pick_delay(tms, activeNeus, excludeConds=None):
     if all(excludeIdx):
         return None
 
-    # select items which are not marked for exclusion
+    # Select items which are not marked for exclusion
     selectMeanPSFR, selectBlocksinfo, selectActNeus, selectIndices \
         = select_activity(meanPSFR, selectBlocksinfo, selectBlocksinfoIdx, activeNeus, excludeIdx)
 
@@ -181,6 +194,7 @@ def pick_delay(tms, activeNeus, excludeConds=None):
     return np.array(d)[np.concatenate(selectActNeus)]
 
 
+# Add additional information to grand blocksinfo
 def gb_addinfo(gbinfo, tms):
     """
 
@@ -215,6 +229,7 @@ def gb_addinfo(gbinfo, tms):
     return gbinfo.sort_index()
 
 
+# Read peristimulus activity from blocksinfo dataframe
 def read_psActivity(ser):
     out = list()
     for item in ser:
@@ -227,6 +242,7 @@ def read_psActivity(ser):
     return out, item[key][1]
 
 
+# Decorator for aggregation functions
 def agg_dec(fcn):
     @wraps(fcn)
     def arg_filter(arg, **kwargs):
@@ -239,6 +255,7 @@ def agg_dec(fcn):
     return arg_filter
 
 
+# Aggregate computed delay
 @agg_dec
 def delay_agg(ser, bIdx, fcn, peakWidth):
     psFR, t = read_psActivity(ser)
@@ -248,16 +265,19 @@ def delay_agg(ser, bIdx, fcn, peakWidth):
                peakWidth)[bIdx]
 
 
+# Aggregate computed peak firing rates
 @agg_dec
 def pkFr_agg(ser, bIdx):
     psFR, t = read_psActivity(ser)
     return np.concatenate(psFR, axis=0).mean(axis=0)[np.ix_(np.logical_and(t > 5.0, t <= 50.0), bIdx)].max(axis=0)
 
 
+# Rotate a list
 def rotate(l: list, step: int):
     return l[-step:] + l[:-step]
 
 
+# Extract grand data from sub-frames
 def gp_extractor(subf, aggFcn, activeNeus, silencingType, extrcCol, postTi, tms):
     epochIdx = subf.index.unique()
     match silencingType:
@@ -302,6 +322,7 @@ def gp_extractor(subf, aggFcn, activeNeus, silencingType, extrcCol, postTi, tms)
                 index=pd.MultiIndex.from_product([['MT'], subf.loc[:, 'MT'].to_numpy()])).T
 
 
+# Modify violin plot to have unfilled areas
 def violin_fill_false(ax):
     for collection in ax.collections:
         if isinstance(collection, matplotlib.collections.PolyCollection):

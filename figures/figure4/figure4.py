@@ -11,55 +11,71 @@ from figures.helper_figs import (gb_addinfo, gp_extractor, delay_agg, compute_ex
 
 
 def plot(tms, activeNeus, xlim=None):
+    """
+        Plot latency of late activity component.
+
+    Args:
+        tms: Instance of TMS class.
+        activeNeus: Active neurons determined by statistical test.
+        xlim (tuple): Limits for x-axis.
+
+    Returns:
+        None
+    """
+
+    # Save the original selection parameters
     oldSelParams = copy.deepcopy(tms.analysis_params['selectionParams'])
 
-    # select TGcut epochs
+    # Define the selection parameters for TGcut epochs
     tgCutCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])),
                                      'TGcut': ('Lv1', 'Lv2', 'Lv3', 'Rv1', 'Rv2', 'Rv3')}}
-    tms.analysis_params = tgCutCond
+    tms.analysis_params = tgCutCond     # Select data corresponding to TGcut condition
     selectBlocksinfo, selectBlocksinfoIdx = tms.filter_blocks
 
-    # select TGcut animals
+    # Define the selection parameters for selecting animals that have TGcut epochs
     tgCutAnimals = {'selectionParams':
                         {'Epoch': dict(zip_longest(EPOCHISOLATORS,
                                                    [tuple(selectBlocksinfo.index.get_level_values('Animal').unique()),
                                                     None]))}}
-    tms.analysis_params = tgCutAnimals
+    tms.analysis_params = tgCutAnimals      # Select data corresponding to TGcut animals
     selectBlocksinfo, selectBlocksinfoIdx = tms.filter_blocks
 
-    # exclude epochs
+    # Exclude epochs with other post conditions
     otherPostConds = [{'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), postKind: 'Post'}} for
                       postKind in {'TG-Injection ', 'Skin-Injection', 'TGOrifice'} & set(tms.blocksinfo.columns)]
     excludeIdx = compute_excludeIdx(selectBlocksinfo, otherPostConds)
     epochIndices = selectBlocksinfo.index[~excludeIdx].unique()
+
+    # Check if there are any valid epoch indices to plot
     if not any(epochIndices):
         print(f'Cannot plot TGOrifice as the associated data is missing in this group of animals')
         return
 
-    # compute peristimulus firing rate if not already done and save it in blocksinfo for later
+    # Compute peristimulus firing rate if not already done and save it in blocksinfo for later use
     for epochIndex in epochIndices:
         tms.analysis_params = {'selectionParams': {'Epoch': {x: y if y != 'none' else None
                                                              for x, y in zip(epochIndices.names, epochIndex)}}}
         _, _ = tms.compute_firingrate(*tms.analysis_params['peristimParams']['smoothingParams'].values(),
                                       *tms.analysis_params['peristimParams']['timeWin'],
                                       tms.analysis_params['peristimParams']['trigger'])
-    # reset analysis parameters
+    # Restore original selection parameters
     tms.analysis_params = {'selectionParams': oldSelParams}
 
-    # statistics
+    # Update statistics
     animalNumsEpochNumsAndActiveNeuronNums = ((np.unique([item[0] for item in epochIndices]).size,
                                                len(epochIndices),
                                                [activeNeus[item].sum() for item in epochIndices]))
 
+    # Select data from blocksinfo at specified epoch indices
     df = tms.blocksinfo.loc[epochIndices, :]
 
-    # convert CoilDir to a consistent nomenclature and set append column 'CHvsRH' with 'hemi' values\
+    # Convert CoilDir to a consistent nomenclature and append column 'CHvsRH' with 'hemi' values
     for hemi, coilDir in product(['same', 'opposite'], ['ML', 'LM']):
         bIdx = hem_CoilDir_selector(df, range(df.shape[0]), hemi, coilDir)
         df.loc[bIdx, 'CoilDir'] = coilDir
         df.loc[bIdx, 'CHvsRH'] = hemi
 
-    # delay
+    # Compute delay
     delay = df.groupby(by=df.index.names + ['CoilDir', 'CHvsRH', 'TGcut', 'CortexAbl', 'RecArea ']).apply(
         gp_extractor, delay_agg, activeNeus, 'TGcut', 'psActivity', None, tms)
     delay.reset_index(['CoilDir', 'CHvsRH', 'TGcut', 'CortexAbl', 'RecArea '], col_level=1, inplace=True)
@@ -74,7 +90,7 @@ def plot(tms, activeNeus, xlim=None):
                       axis=1).drop(
         columns=[('', 'CoilDir'), ('', 'CHvsRH'), ('', 'TGcut'), ('', 'CortexAbl'), 'colName'])
 
-    # plot delay
+    # Plot delay
     plt.style.use('default')
     fig, axes = plt.subplots(1, 1,)
     swarmplot = sns.catplot(
@@ -107,9 +123,13 @@ def plot(tms, activeNeus, xlim=None):
 
 
 if __name__ == '__main__':
+
+    # Load the animal list data
     animalList = r'G:\Vishnu\data\TMSTG\animalList.xlsx'
     tms = TMSTG.load(animalList)
     # activeNeu = tms.stats_is_signf_active()
+
+    # Load grandBlocksinfo if it exists and merge it with the current blocksinfo
     if os.path.isfile('../../grandBlocksinfo'):
         grandBlocksinfo = pd.read_pickle('../../grandBlocksinfo')
         for col in {'psActivity', 'delay'} & set(grandBlocksinfo.columns):
@@ -119,9 +139,10 @@ if __name__ == '__main__':
         tms.blocksinfo = tms.blocksinfo.where(pd.notnull(tms.blocksinfo), None)
         tms.filter_blocks = None
 
+    # Generate plots
     plot(tms, pd.read_pickle("./activeNeu_TGcut"), xlim=[-20, 60])
 
-    # save data after join and apply
+    # Save the updated (join and apply) grandBlocksinfo if the original exists
     if os.path.isfile('../../grandBlocksinfo'):
         grandBlocksinfo = gb_addinfo(pd.read_pickle('../../grandBlocksinfo'), tms)
         grandBlocksinfo.to_pickle('../../grandBlocksinfo')

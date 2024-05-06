@@ -15,15 +15,31 @@ from figures.helper_figs import (adjust_lim, ascertain_colName_from_colParams, s
 
 @cached(cache={}, key=lambda tms, uniqueEpochs: hashkey(uniqueEpochs))
 def compute_raster(tms, uniqueEpochs):
+    """
+    Retrieve trialwise adjusted spiking time-stamps for specific epochs. This being a cached function avoids
+    re-computing time-stamps for repeated calls using the same epochs.
+
+    Args:
+        tms: Instance of TMS class.
+        uniqueEpochs: Unique epochs for which raster plots are computed.
+
+    Returns:
+        List: containing spike time-stamps from each block for specific epochs
+    """
     return tms.psts
 
 
-@cached(cache={}, key=lambda tms, uniqueEpochs: hashkey(uniqueEpochs))
-def compute_psfr(tms, uniqueEpochs):
-    return tms.compute_firingrate
-
-
 def construct_subplots(colParams, kind):
+    """
+    Construct subplots with specific number of rows depending on 'kind' arg and columns depending on 'colParams' arg.
+
+    Args:
+        colParams: Conditions to plot along each column.
+        kind: Kind of plot ('rasterOnly', 'rasterAndPsfr', or 'rasterAndPopulationAvgFR').
+
+    Returns:
+        The output of matplotlib.pyplot.plt.subplots function called with specific number of rows and columns
+    """
     match kind:
         case 'rasterOnly':
             return plt.subplots(3, len(colParams))
@@ -32,18 +48,39 @@ def construct_subplots(colParams, kind):
 
 
 def plot(tms, activeNeus, kind=None, colParams=None, xlim=None, epochAndNeuron=None):
+    """
+    Plot raster plots, peri-stimulus firing rates, and population average firing rates.
+
+    Args:
+        tms: Instance of TMS class.
+        activeNeus: Active neurons determined by statistical test.
+        kind (str): Type of plot ('rasterOnly', 'rasterAndPsfr', or 'rasterAndPopulationAvgFR').
+        colParams (tuple): Parameters for columns.
+        xlim (tuple): Limits for x-axis.
+        epochAndNeuron (tuple): Tuple containing epoch and neuron information.
+
+    Returns:
+        None
+    """
+
     assert type(colParams) == tuple or colParams is None, 'colNames has to be a list of dictionary items or None'
     assert kind in ('rasterOnly', 'rasterAndPsfr', 'rasterAndPopulationAvgFR'), 'unknown input for parameter "kind"'
+
+    # Conditions for raster row categories
     rasterRowConds = ({'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '<1'}},
                       {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==1'}},
                       {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '>1'}})
+
+    # Condition for epochs with 'MT' == 0
     zeroMTCond = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS, [None, ])), 'MT': '==0'}}
+
     plt.style.use('default')
     colorsPlt = ('C0', 'C1', 'C2')
     ylim = [np.inf, 0]
     fig, ax = construct_subplots(colParams, kind)
     animalNumsEpochNumsAndActiveNeuronNums_perCol = list()
 
+    # Iterate over columns
     for colIdx in range(len(colParams)):
         colName = ascertain_colName_from_colParams(colParams[colIdx])
         tms.analysis_params = copy.deepcopy(colParams[colIdx])
@@ -54,15 +91,15 @@ def plot(tms, activeNeus, kind=None, colParams=None, xlim=None, epochAndNeuron=N
             print(f'Cannot plot for {colParams[colIdx]} as the associated data is missing in this group of animals')
             continue
 
-        # select an epoch and a neuron for plotting
+        # Select an epoch and a neuron for plotting
         sampleBlocksinfo, sampleEpochIndex, neuIdx = (
             selectEpochAndNeuron(None if epochAndNeuron is None else epochAndNeuron[colIdx],
                                  tms, epochIndices, activeNeus, colParams[colIdx]))
 
-        # get the index of zeroMT ('MT' == 0) in order to exclude it from further selection (e.g., 'MT' <= 1)
+        # Get the index of zeroMT ('MT' == 0) in order to exclude it from further selection (e.g., 'MT' <= 1)
         _, zeroMTIdx = fb(sampleBlocksinfo, zeroMTCond)
 
-        # select peristimulus timestamps and firing-rates pertaining to sampled epoch
+        # Select peristimulus timestamps and firing-rates pertaining to sampled epoch
         samplePSTS = compute_raster(tms, tuple(sampleBlocksinfo.index.to_numpy()))
         if kind in ('rasterAndPsfr', 'rasterAndPopulationAvgFR'):
             samplePSFR, ps_T = tms.compute_firingrate(
@@ -71,18 +108,19 @@ def plot(tms, activeNeus, kind=None, colParams=None, xlim=None, epochAndNeuron=N
                 tms.analysis_params['peristimParams']['trigger'])
             sampleBaselineFR, ps_baseline_T = (
                 tms.compute_firingrate('rectangular',
-                                       np.diff(tms.analysis_params['peristimParams']['baselinetimeWin']).item(
-                                           0),
+                                       np.diff(tms.analysis_params['peristimParams']['baselinetimeWin']).item(0),
                                        0.0,
                                        mean(tms.analysis_params['peristimParams']['baselinetimeWin']),
                                        tms.analysis_params['peristimParams']['baselinetimeWin'][1],
                                        tms.analysis_params['peristimParams']['trigger']))
             ps_T_corrected = tms.analysis_params['peristimParams']['timeWin'][0] + ps_T
 
-        # statistics
-        animalNumsEpochNumsAndActiveNeuronNums_perCol.append((np.unique([item[0] for item in epochIndices]).size,
-                                                              len(epochIndices),
-                                                              [activeNeus[item].sum() for item in epochIndices]))
+        # Statistics
+        animalNumsEpochNumsAndActiveNeuronNums_perCol.append((
+            np.unique([item[0] for item in epochIndices]).size,
+            (epochIndices),
+            [activeNeus[item].sum() for item in epochIndices]
+        ))
 
         # --------------------------------------------------------------------------------------------------------------
         ax[0][colIdx].set_title(sampleEpochIndex[0] + '/' + colName + 'Neu-' + str(neuIdx), fontsize=6)
@@ -91,7 +129,7 @@ def plot(tms, activeNeus, kind=None, colParams=None, xlim=None, epochAndNeuron=N
             assert sum(blockIdx) >= 1, \
                 f"epoch {sampleEpochIndex} does not have MT{rasterRowConds[i]['selectionParams']['MT']} values"
 
-            # if there are multiple blocks with same rasterRowCond, select the one with maximum no. of Trigs
+            # If there are multiple blocks with same rasterRowCond, select the one with maximum no. of Trigs
             if sum(blockIdx) > 1:
                 idx = np.where(blockIdx)[0][sampleBlocksinfo.loc[blockIdx, 'no. of Trigs'].argmax()]
                 blockIdx.iloc[np.setdiff1d(np.where(blockIdx)[0], idx)] = False
@@ -101,13 +139,13 @@ def plot(tms, activeNeus, kind=None, colParams=None, xlim=None, epochAndNeuron=N
                     f'MT = {sampleBlocksinfo[blockIdx]["MT"].values[0]}\nTrials (N)', fontsize=8)
 
             # ----------------------------------------------------------------------------------------------------------
-            # plot raster
+            # Plot raster
             ax[i][colIdx].eventplot([tms.analysis_params['peristimParams']['timeWin'][0] + item
                                      for item in samplePSTS[np.nonzero(blockIdx)[0][0]][neuIdx]],
                                     colors=colorsPlt[i])
 
             # ----------------------------------------------------------------------------------------------------------
-            # plot PSFR
+            # Plot PSFR
             if kind == 'rasterAndPsfr':
                 selectPSFR = samplePSFR[np.nonzero(blockIdx)[0][0]]
                 plot_MeanAndSEM(selectPSFR.mean(axis=0)[:, neuIdx],
@@ -129,6 +167,7 @@ def plot(tms, activeNeus, kind=None, colParams=None, xlim=None, epochAndNeuron=N
         if kind != 'rasterOnly':
             ylim = [min(ax[rowIdx][colIdx].get_ylim()[0], ylim[0]), max(ax[rowIdx][colIdx].get_ylim()[1], ylim[1])]
 
+    # Adjust xlim if specified
     if xlim is not None:
         adjust_lim(ax, xlim, 'xlim')
     # if kind != 'rasterOnly':
@@ -140,8 +179,10 @@ def plot(tms, activeNeus, kind=None, colParams=None, xlim=None, epochAndNeuron=N
 
 
 if __name__ == '__main__':
+    # Set the number of threads for Numba to optimize parallel processing
     nb.set_num_threads(max(1, int(nb.config.NUMBA_NUM_THREADS // 1.25)))
 
+    # Define selection parameters for different epochs
     # epochs = (
     #     {'selectionParams': {'Epoch': {'Region': 'MC', 'Layer': 'L5'}}},
     #     {'selectionParams': {'Epoch': {'Region': 'SC', 'Layer': 'L5'}}},
@@ -155,15 +196,25 @@ if __name__ == '__main__':
         {'selectionParams': {'Epoch': {key: value for key, value in zip_longest(keys, ('VC', 'L5'))}}},
     )
 
+    # Load TMS data from the specified Excel file
     animalList = r'G:\Vishnu\data\TMSTG\animalList.xlsx'
     tms = TMSTG.load(animalList)
+
+    # Set the peristimulus time window
     tms.analysis_params = {'peristimParams': {'timeWin': (-50.0, 350.0)}}
-    #activeNeu = tms.stats_is_signf_active()
+
+    # Load or compute active neurons from statistical analysis
+    # activeNeu = tms.stats_is_signf_active()
     activeNeu = pd.read_pickle("./activeNeu_Cortex")
-    # plot(tms, colParams=epochs, rasterOnly=False, rasterAndPsfr=False, rasterAndPopulationAvgFR=True, xlim=[-20, 60])
+
+    # Define plot kinds for different types of plots
     plotKinds = ('rasterOnly', 'rasterAndPsfr', 'rasterAndPopulationAvgFR')
+
+    # Plot raster and peri-stimulus firing rate (PSFR) for specified epochs and neurons
     plot(tms, activeNeu, kind=plotKinds[1], colParams=epochs, xlim=[-50, 350], epochAndNeuron=
          ({'epochIndex': ('20200705', 'MC', 'L5', 'opposite', 'none', '1467'), 'neuIdx': 5},
           {'epochIndex': ('20200705', 'SC', 'L5', 'same', 'none', '1496'), 'neuIdx': 4},
           {'epochIndex': ('20200705', 'VC', 'L5', 'same', 'none', '1404'), 'neuIdx': 1}))
+
+    # Reset the number of threads for Numba to default
     nb.set_num_threads(nb.config.NUMBA_DEFAULT_NUM_THREADS)

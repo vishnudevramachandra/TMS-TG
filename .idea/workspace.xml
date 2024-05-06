@@ -4,17 +4,17 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="feat: ver2 of Figure 1 and 2">
+    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="comments &amp; co: tms_tg">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/figures/blockplots_singleanimal.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/figures/blockplots_singleanimal.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/MATdata.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/MATdata.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/MATfile.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/MATfile.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/dataanalysis.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/dataanalysis.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/helper_tms_tg.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/helper_tms_tg.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/math_fcns.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/math_fcns.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/matpy.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/matpy.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/rawdata_explorer.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/lib/rawdata_explorer.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tms_tg.py" beforeDir="false" afterPath="$PROJECT_DIR$/tms_tg.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/figure1/figure1.ipynb" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/figure1/figure1a.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure1/figure1a.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/figure1/figure1b.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure1/figure1b.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/figure2/figure2.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure2/figure2.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/figure3/figure3a.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure3/figure3a.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/figure3/figure3b.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure3/figure3b.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/figure4/figure4.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure4/figure4.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/figure5/figure5.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure5/figure5.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/helper_figs.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/helper_figs.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -495,7 +495,15 @@
       <option name="project" value="LOCAL" />
       <updated>1705400789272</updated>
     </task>
-    <option name="localTasksCounter" value="22" />
+    <task id="LOCAL-00022" summary="comments &amp; co: tms_tg">
+      <option name="closed" value="true" />
+      <created>1714771079161</created>
+      <option name="number" value="00022" />
+      <option name="presentableId" value="LOCAL-00022" />
+      <option name="project" value="LOCAL" />
+      <updated>1714771079161</updated>
+    </task>
+    <option name="localTasksCounter" value="23" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -605,7 +613,8 @@
     <MESSAGE value="fix: missing files" />
     <MESSAGE value="fix: violinplot done using seaborn" />
     <MESSAGE value="feat: ver2 of Figure 1 and 2" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: ver2 of Figure 1 and 2" />
+    <MESSAGE value="comments &amp; co: tms_tg" />
+    <option name="LAST_COMMIT_MESSAGE" value="comments &amp; co: tms_tg" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -617,7 +626,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/figures/figure1/figure1a.py</url>
-          <line>131</line>
+          <line>170</line>
           <option name="timeStamp" value="914" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
