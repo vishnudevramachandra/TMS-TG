@@ -808,7 +808,7 @@ if __name__ == '__main__':
     # tms.analysis_params = {'selectionParams': {'Epoch': {'Region': 'thal'}, 'MT': '>=1.2',
     #                                            'RecArea ': ('VPM', 'PO', 'VM', 'VPL')}}
 
-    # Get the index of the active (statistically significant) neurons
+    # Boolean indices of the active (statistically significant) neurons
     activeNeu = tms.stats_is_signf_active()
 
     # Filter blocks based on analysis parameters
