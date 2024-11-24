@@ -4,12 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="fix: Structure of figures">
+    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="fix: Notebook rewritten">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/figures/blockplots_singleanimal.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/figures/blockplots_singleanimal.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/notebooks/all_figures.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/all_figures.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/figure1/figure1a.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure1/figure1a.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/figure4/figure4.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure4/figure4.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/helper_figs.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/helper_figs.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/notebooks/analysis.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/analysis.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/notebooks/extra.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/extra.ipynb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tms_tg.py" beforeDir="false" afterPath="$PROJECT_DIR$/tms_tg.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -85,7 +86,7 @@
     &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
     &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;G:/Vishnu/Analysis/figures/ver1/Figure2&quot;,
+    &quot;last_opened_file_path&quot;: &quot;G:/Vishnu/Analysis/tms-tg/figures/blockplots_singleanimal.ipynb&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -116,7 +117,7 @@
       <recent name="G:\Vishnu\Analysis\tms-tg\data" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.tms_tg">
+  <component name="RunManager" selected="Python.figure4">
     <configuration name="MATfile" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="TMS-TG" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -161,28 +162,6 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="dataanalysis" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="TMS-TG" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/lib" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/lib/dataanalysis.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="true" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
     <configuration name="figure1a" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="TMS-TG" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -197,6 +176,28 @@
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/figures/figure1/figure1a.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="figure4" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="TMS-TG" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/figures/figure4" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/figures/figure4/figure4.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="true" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -251,19 +252,19 @@
       <method v="2" />
     </configuration>
     <list>
+      <item itemvalue="Python.figure4" />
       <item itemvalue="Python.MATfile" />
       <item itemvalue="Python.matpy" />
       <item itemvalue="Python.figure1a" />
-      <item itemvalue="Python.dataanalysis" />
       <item itemvalue="Python.tms_tg" />
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.figure4" />
         <item itemvalue="Python.tms_tg" />
+        <item itemvalue="Python.figure1a" />
         <item itemvalue="Python.matpy" />
         <item itemvalue="Python.MATfile" />
-        <item itemvalue="Python.figure1a" />
-        <item itemvalue="Python.dataanalysis" />
       </list>
     </recent_temporary>
   </component>
@@ -337,6 +338,11 @@
       <workItem from="1704877903816" duration="28150000" />
       <workItem from="1704974286421" duration="63561000" />
       <workItem from="1705409833294" duration="1495000" />
+      <workItem from="1728992764315" duration="23779000" />
+      <workItem from="1729071198133" duration="6608000" />
+      <workItem from="1730372794048" duration="7822000" />
+      <workItem from="1731612557321" duration="1873000" />
+      <workItem from="1731673513218" duration="34624000" />
     </task>
     <task id="LOCAL-00001" summary="feat: read matlab/hdf5 files">
       <created>1688659386984</created>
@@ -507,7 +513,15 @@
       <option name="project" value="LOCAL" />
       <updated>1714990105950</updated>
     </task>
-    <option name="localTasksCounter" value="24" />
+    <task id="LOCAL-00024" summary="fix: Notebook rewritten">
+      <option name="closed" value="true" />
+      <created>1715000513201</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1715000513201</updated>
+    </task>
+    <option name="localTasksCounter" value="25" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -572,6 +586,17 @@
             </list>
           </value>
         </entry>
+        <entry key="User">
+          <value>
+            <list>
+              <RecentGroup>
+                <option name="FILTER_VALUES">
+                  <option value="*" />
+                </option>
+              </RecentGroup>
+            </list>
+          </value>
+        </entry>
       </map>
     </option>
     <option name="TAB_STATES">
@@ -584,7 +609,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="organizeAsClasses" />
+                        <option value="master" />
                       </list>
                     </value>
                   </entry>
@@ -619,7 +644,8 @@
     <MESSAGE value="feat: ver2 of Figure 1 and 2" />
     <MESSAGE value="comments &amp; co: tms_tg" />
     <MESSAGE value="fix: Structure of figures" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix: Structure of figures" />
+    <MESSAGE value="fix: Notebook rewritten" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix: Notebook rewritten" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -636,18 +662,8 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tms_tg.py</url>
-          <line>488</line>
-          <option name="timeStamp" value="1282" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/tms_tg.py</url>
-          <line>398</line>
+          <line>405</line>
           <option name="timeStamp" value="1287" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/lib/matpy.py</url>
-          <line>115</line>
-          <option name="timeStamp" value="1302" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/lib/matpy.py</url>
@@ -659,6 +675,71 @@
           <line>133</line>
           <option name="timeStamp" value="1305" />
         </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tms_tg.py</url>
+          <line>811</line>
+          <option name="timeStamp" value="1306" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/figures/figure1/figure1a.py</url>
+          <line>85</line>
+          <option name="timeStamp" value="1307" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/figures/helper_figs.py</url>
+          <line>39</line>
+          <option name="timeStamp" value="1308" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/figures/figure1/figure1a.py</url>
+          <line>211</line>
+          <option name="timeStamp" value="1311" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/figures/figure1/figure1a.py</url>
+          <line>219</line>
+          <option name="timeStamp" value="1314" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/figures/figure1/figure1a.py</url>
+          <line>125</line>
+          <option name="timeStamp" value="1315" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/figures/helper_figs.py</url>
+          <line>78</line>
+          <option name="timeStamp" value="1316" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/figures/figure1/figure1a.py</url>
+          <line>118</line>
+          <option name="timeStamp" value="1318" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/figures/figure1/figure1a.py</url>
+          <line>166</line>
+          <option name="timeStamp" value="1319" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/lib/matpy.py</url>
+          <line>115</line>
+          <option name="timeStamp" value="1321" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/figures/figure4/figure4.py</url>
+          <line>142</line>
+          <option name="timeStamp" value="1322" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/figures/figure4/figure4.py</url>
+          <line>132</line>
+          <option name="timeStamp" value="1323" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tms_tg.py</url>
+          <line>821</line>
+          <option name="timeStamp" value="1329" />
+        </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
@@ -667,8 +748,8 @@
     <SUITE FILE_PATH="coverage/tms_tg$figure3a.coverage" NAME="figure3a Coverage Results" MODIFIED="1707699029183" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure3" />
     <SUITE FILE_PATH="coverage/TMS_TG$Matdata.coverage" NAME="Matdata Coverage Results" MODIFIED="1688658637104" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/tms_tg$figure1b.coverage" NAME="figure1b Coverage Results" MODIFIED="1707534623105" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure1" />
-    <SUITE FILE_PATH="coverage/tms_tg$figure4.coverage" NAME="figure4 Coverage Results" MODIFIED="1707902552991" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure4" />
-    <SUITE FILE_PATH="coverage/tms_tg$figure1a.coverage" NAME="figure1a Coverage Results" MODIFIED="1714399987062" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure1" />
+    <SUITE FILE_PATH="coverage/tms_tg$figure4.coverage" NAME="figure4 Coverage Results" MODIFIED="1732441458757" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure4" />
+    <SUITE FILE_PATH="coverage/tms_tg$figure1a.coverage" NAME="figure1a Coverage Results" MODIFIED="1729082591095" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure1" />
     <SUITE FILE_PATH="coverage/tms_tg$matpy.coverage" NAME="matpy Coverage Results" MODIFIED="1714769943724" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/tms_tg$dataanalysis__1_.coverage" NAME="dataanalysis (1) Coverage Results" MODIFIED="1694430882996" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/tms_tg$MATfile.coverage" NAME="MATfile Coverage Results" MODIFIED="1714754132317" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
@@ -678,7 +759,7 @@
     <SUITE FILE_PATH="coverage/TMS_TG$TMS_TG.coverage" NAME="TMS-TG Coverage Results" MODIFIED="1685709413433" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/TMS_TG$MATdata.coverage" NAME="MATdata Coverage Results" MODIFIED="1689001586275" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/tms_tg$figure2.coverage" NAME="figure2 Coverage Results" MODIFIED="1705328019019" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure2" />
-    <SUITE FILE_PATH="coverage/tms_tg$tms_tg.coverage" NAME="tms_tg Coverage Results" MODIFIED="1714770553452" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/tms_tg$tms_tg.coverage" NAME="tms_tg Coverage Results" MODIFIED="1731954253326" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/TMS_TG$MATfile.coverage" NAME="MATfile Coverage Results" MODIFIED="1688651271977" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/TMS_TG$DATAanalysis.coverage" NAME="DATAanalysis Coverage Results" MODIFIED="1689593441631" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
   </component>

@@ -127,7 +127,7 @@ if __name__ == '__main__':
     # Load the animal list data
     animalList = r'G:\Vishnu\data\TMSTG\animalList.xlsx'
     tms = TMSTG.load(animalList)
-    # activeNeu = tms.stats_is_signf_active()
+    activeNeu = tms.stats_is_signf_active()
 
     # Load grandBlocksinfo if it exists and merge it with the current blocksinfo
     if os.path.isfile('../../grandBlocksinfo'):

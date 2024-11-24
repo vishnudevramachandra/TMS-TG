@@ -74,7 +74,8 @@ def selectNeuron(activeNeu):
 
 # Randomly select an epoch and a neuron for plotting
 def selectEpochAndNeuron(epochAndNeuron, tms, epochIndices, activeNeus, colParam):
-    # Randomly sample an epoch that has at least one active neuron for plotting if EpochAndNeuron is None
+    # Randomly sample an epoch that has at least one active neuron for plotting if the choice of Epoch is unspecified,
+    # i.e., if EpochAndNeuron is None
     sampleActiveNeus = [False, ]
     while not any(sampleActiveNeus):
         sampleEpochIndex = epochIndices[np.random.choice(len(epochIndices))] \
@@ -88,7 +89,7 @@ def selectEpochAndNeuron(epochAndNeuron, tms, epochIndices, activeNeus, colParam
             assert any(sampleActiveNeus), f'Epoch {sampleEpochIndex} does not have any active neurons'
             break
 
-    # Randomly select a neuron for plotting raster
+    # Randomly select a neuron for plotting raster if choice of Neuron is unspecified, i.e., if EpochAndNeuron is None
     neuIdx = np.random.choice(sampleActiveNeus.nonzero()[0]) \
         if epochAndNeuron is None or 'neuIdx' not in epochAndNeuron.keys() else epochAndNeuron['neuIdx']
 

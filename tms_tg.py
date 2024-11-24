@@ -1,10 +1,12 @@
+import itertools
+
 import numpy as np
 import numba as nb
 import pandas as pd
 from statistics import mean, mode
 import os
 from typing import Optional, Any
-from itertools import zip_longest
+from itertools import zip_longest, product
 from functools import lru_cache, cached_property
 import scipy
 
@@ -192,14 +194,14 @@ def hem_CoilDir_selector(blocksinfo, index, hem, cDir):
 
 
 # Select a block from blocksinfo DataFrame based on the specified epoch and amplitude criteria.
-def block_selector(blocksinfo: pd.DataFrame, epoch: tuple, amplitude: Optional[str] = 'MT') \
+def block_selector(blocksinfo: pd.DataFrame, epoch: tuple, trialwise_PS_FR: list, amplitude: Optional[str] = 'MT') \
         -> np.ndarray[Any, np.dtype[np.float64]]:
     """
     Find out the index of the block that matches the given amplitude for a particular epoch. In case the epoch
     contains multiple blocks with same amplitude as it happens when injections are done, then select the one prior
     to injection, if it exists, otherwise select the last 'Post' injection block. In the additional case, where the
-    epoch contains multiple blocks with same amplitude due to different combinations of StimHem and CoilDir, select the
-    one with CoilDir == 'ML' and StimHem == RecHem.
+    epoch contains multiple blocks with same amplitude due to different combinations of StimHem ('RH', 'LH')
+    and CoilDir ('ML', 'LM', etc.), select the one with the highest firing rate.
 
     Parameters
     ----------
@@ -250,29 +252,34 @@ def block_selector(blocksinfo: pd.DataFrame, epoch: tuple, amplitude: Optional[s
     # Handle cases where no blocks meet the criteria
     if not any(index):
         # Here its considered that only one injection condition was experimentally tested at a time, i.e., no overlaps,
-        # so first extract it. Then either the last 'Post' condition pertaining to stimulus 'amplitude' is used as index
-        # or the last 'Post' condition under the criteria CoilDir == 'ML' and StimHem == RecHem is used as the index
+        # so first extract it. Then either the last 'Post' condition pertaining to stimulus 'amplitude', when only one
+        # CoilDir & StimHem was tested, is used as index or in case of multiple combinations of CoilDir & Stim, the
+        # 'Post' condition towards the end that has the highest firing rate is used as the index
         injTypesPostRelation = blocksinfo.loc[epoch, injTypesPresent].apply(
             lambda x: x.str.contains('post', case=False)).any()
         injWithPost = injTypesPostRelation.index[injTypesPostRelation.values]
         if len(injWithPost) > 0:
-            postT = blocksinfo[injWithPost.item()].str.extract('(\d+)').astype('float64')
+            postT = blocksinfo[injWithPost.item()].str.extract('(\d+)').astype('float64').squeeze()
             postT.loc[list(set(blocksinfo.index.unique()) - {epoch})] = 0.0
             postT[~mtIdx.to_numpy()] = 0.0
-            bIdx = hem_CoilDir_selector(blocksinfo, np.nonzero(postT)[0], 'same', 'ML')
-            if any(bIdx):
-                postT.iloc[np.nonzero(postT)[0][~bIdx]] = 0.0
-            index = np.nonzero(postT == postT.max())[0]
+
+            firingrate = 0.0
+            # Iterate over every combination of CoilDir & Stim
+            for item in product(blocksinfo['StimHem'].unique(), blocksinfo['CoilDir'].unique()):
+                selIdx = np.nonzero((blocksinfo['StimHem'] == item[0]) & (blocksinfo['CoilDir'] == item[1]))[0]
+                lastBlockIdx = selIdx[postT.iloc[selIdx].argmax()]
+                # update Index to point to the block having the highest firing rate
+                if trialwise_PS_FR[lastBlockIdx].sum() > firingrate:
+                    firingrate = trialwise_PS_FR[lastBlockIdx].sum()
+                    index = lastBlockIdx
+
+            index = np.array([index])
 
     # Handle cases where multiple blocks meet the criteria
     elif len(index) > 1:
-        # Find the index that corresponds to criteria CoilDir == 'ML' and StimHem == RecHem
-        bIdx = hem_CoilDir_selector(blocksinfo, index, 'same', 'ML')
-        if any(bIdx):
-            index = index[bIdx]
-        else:
-            # if criteria CoilDir == 'ML' and StimHem == RecHem is non-existent, pick the first block.
-            index = index[0]
+        # Find the index that corresponds to the block having the highest firing rate
+        maxIdx = np.array([trialwise_PS_FR[item].sum() for item in index]).argmax(keepdims=True)
+        index = index[maxIdx]
 
     return index
 
@@ -485,11 +492,11 @@ class TMSTG(object):
             else:
                 self.blocksinfo.iat[idx, psActivityIdx] = {params: [tmp_ps_FR, ps_T]}
 
-            # Reset filter_blocks
-            self.filter_blocks = None
-
             # Append computed firing rate to the list
             ps_FR.append(tmp_ps_FR)
+
+        # Reset filtering of blocks
+        self.filter_blocks = None
 
         return ps_FR, ps_T
 
@@ -641,14 +648,14 @@ class TMSTG(object):
         selectBlocksinfo, selectBlocksinfoIdx = self.filter_blocks
         epochs = selectBlocksinfo.index.unique()
 
-        # Compute whether neurons are significantly active at MT stimulation (if non-existent than Max stimulation,
+        # Find out whether neurons are significantly active at MT stimulation (if non-existent then Max stimulation,
         # for silencing conditions the last MT stimulation)
         activeNeus = pd.Series(np.empty(shape=epochs.shape), index=epochs)
         for epoch in epochs:
-            index = block_selector(selectBlocksinfo, epoch, amplitude='MT')
+            index = block_selector(selectBlocksinfo, epoch, trialwise_PS_FR, amplitude='MT')
             assert len(index) < 2, f'epoch {epoch} has more than one MT cond, not correct'
             if len(index) == 0:
-                index = block_selector(selectBlocksinfo, epoch, amplitude='maximum')
+                index = block_selector(selectBlocksinfo, epoch, trialwise_PS_FR, amplitude='maximum')
                 assert len(index) < 2, f'epoch {epoch} has more than one MT cond, not correct'
             postStimFR = trialwise_PS_FR[index.item()]
             baselineFR = trialwise_BL_FR[index.item()]
