@@ -142,7 +142,7 @@ if __name__ == '__main__':
 
         # Plot firing rate and delay
         frYlim, delayYlim = plot(
-            tms, activeNeus, colParams[colIdx], ax[:, colIdx], xlim=[-25, 50], frKind='Average')
+            tms, activeNeus, colParams[colIdx], ax[:, colIdx], xlim=[-12, 60], frKind='Average')
 
         # Set labels and legends for the plots
         if colIdx == 0:

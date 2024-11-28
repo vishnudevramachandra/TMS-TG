@@ -16,8 +16,7 @@ from lib.constants import LAYERS, REGIONS, EPOCHISOLATORS, COLS_WITH_STRINGS, CO
 from lib.dataanalysis import peristim_firingrate, peristim_timestamp
 
 
-def _filter_blocks_helper(
-        blocksinfo, analysis_params, fIdx=None) -> tuple[pd.DataFrame, pd.Series]:
+def _filter_blocks_helper(blocksinfo, analysis_params, fIdx=None) -> tuple[pd.DataFrame, pd.Series]:
     """
     Filters MultiIndex-ed blocksinfo <DataFrame> using 'selectionParams' in analysis_params
 
@@ -49,19 +48,37 @@ def _filter_blocks_helper(
             else:
                 fIdx &= epochIndices[item].str.contains(strings)
 
-    # Change the truth values of Index by doing floating point comparison on dataframe columns
+    # Change the truth values of Index by doing floating point comparison on dataframe columns.
+    # [Very important] Only using expression where the number is given after the arithmetic symbol is correct
     selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_NUMS
     for col in selectCols:
-        fIdx &= th.comparator(blocksinfo[col], analysis_params['selectionParams'][col])
+        for string in analysis_params['selectionParams'][col].split('&'):
+            fIdx &= th.comparator(blocksinfo[col], string)
 
     # Change the truth values of Index by doing string comparison on dataframe columns
     selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_STRINGS
     for col in selectCols:
-        strings = analysis_params['selectionParams'][col]
-        if isinstance(strings, tuple):
-            fIdx &= blocksinfo[col].str.contains('|'.join(strings), case=False)
-        else:
-            fIdx &= blocksinfo[col].str.contains(strings, case=False)
+        strings = analysis_params['selectionParams'][col].split(' ')
+        logicalOps = strings[1::2]
+        strList = strings[0::2]
+        boolIdx = ~blocksinfo[col].str.contains(strList[0][1:], case=False) if strList[0].startswith('!') \
+            else blocksinfo[col].str.contains(strList[0], case=False)
+
+        for string, logicalOp in zip(strList[1:], logicalOps):
+            match logicalOp:
+                case '&':
+                    boolIdx &= ~blocksinfo[col].str.contains(string[1:], case=False) if string.startswith('!') \
+                        else blocksinfo[col].str.contains(string, case=False)
+                case '|':
+                    boolIdx |= ~blocksinfo[col].str.contains(string[1:], case=False) if string.startswith('!') \
+                        else blocksinfo[col].str.contains(string, case=False)
+                case '^':
+                    boolIdx ^= ~blocksinfo[col].str.contains(string[1:], case=False) if string.startswith('!') \
+                        else blocksinfo[col].str.contains(string, case=False)
+                case '_':
+                    raise ValueError(f'String \'{strings}\' in tms.analysis_params has invalid comparator. \n'
+                                     f'Select one from this valid list [& : | : ^]')
+        fIdx &= boolIdx
 
     # Convert nan values to False
     fIdx = fIdx == 1
@@ -265,7 +282,7 @@ def block_selector(blocksinfo: pd.DataFrame, epoch: tuple, trialwise_PS_FR: list
 
             firingrate = 0.0
             # Iterate over every combination of CoilDir & Stim
-            for item in product(blocksinfo['StimHem'].unique(), blocksinfo['CoilDir'].unique()):
+            for item in product(blocksinfo.loc[epoch, 'StimHem'].unique(), blocksinfo.loc[epoch, 'CoilDir'].unique()):
                 selIdx = np.nonzero((blocksinfo['StimHem'] == item[0]) & (blocksinfo['CoilDir'] == item[1]))[0]
                 lastBlockIdx = selIdx[postT.iloc[selIdx].argmax()]
                 # update Index to point to the block having the highest firing rate
@@ -381,6 +398,13 @@ class TMSTG(object):
                 th._concat_blocksinfo(blocksinfo, 'Animal', str(groupinfo.loc[i, 'Animal']))
                 blocksinfo = cls.do_multi_indexing(blocksinfo, animalMatlabfnames)
                 blocksinfo = th._edit_blocksinfo(blocksinfo.copy(deep=False), 'TrigIndices')
+
+                # Convert CoilDir to a consistent nomenclature and append column 'CHvsRH' with 'hemi' values
+                for hemi, coilDir in product(['same', 'opposite'], ['ML', 'LM', 'AP', 'PA']):
+                    bIdx = hem_CoilDir_selector(blocksinfo, range(blocksinfo.shape[0]), hemi, coilDir)
+                    blocksinfo.loc[bIdx, 'CoilDir'] = coilDir
+                    blocksinfo.loc[bIdx, 'CHvsRH'] = hemi
+
                 cls._sort_filelist(animalMatlabfnames, blocksinfo)
                 groupMatlabfnames = pd.concat([groupMatlabfnames, animalMatlabfnames])
                 groupBlocksinfo = pd.concat([groupBlocksinfo, blocksinfo])

@@ -21,7 +21,7 @@ def adjust_lim(ax, lim, kind):
                 axis.item().set_ylim(lim)
 
 
-# Generate column name from dictionary
+# Generate column name from params argument
 def colName_from_dict(colName, params):
     for key in params:
         if type(params[key]) == dict:
@@ -274,8 +274,8 @@ def pkFr_agg(ser, bIdx):
 
 
 # Rotate a list
-def rotate(l: list, step: int):
-    return l[-step:] + l[:-step]
+def rotate(array: list, step: int):
+    return array[-step:] + array[:-step]
 
 
 # Extract grand data from sub-frames
@@ -288,7 +288,9 @@ def gp_extractor(subf, aggFcn, activeNeus, silencingType, extrcCol, postTi, tms)
             mtTypes = subf['MT'].unique()
             for mtType in mtTypes:
                 selectMTIdx = subf['MT'] == mtType
-                out = [subf.loc[blockIdx, extrcCol].agg(aggFcn, axis=0, bIdx=activeNeus[epochIdx].item(),
+                out = [subf.loc[blockIdx, extrcCol].agg(aggFcn,
+                                                        axis=0,
+                                                        bIdx=activeNeus[epochIdx].item(),
                                                         fcn=tms.late_comp.compute_delay,
                                                         peakWidth=
                                                         tms.analysis_params['peristimParams']['smoothingParams'][
@@ -299,7 +301,9 @@ def gp_extractor(subf, aggFcn, activeNeus, silencingType, extrcCol, postTi, tms)
                 for ti in postTi:
                     blockIdx = (ti[0] <= postT) & (postT < ti[1]) & selectMTIdx
                     if any(blockIdx):
-                        out.append(subf.loc[blockIdx, extrcCol].agg(aggFcn, axis=0, bIdx=activeNeus[epochIdx].item(),
+                        out.append(subf.loc[blockIdx, extrcCol].agg(aggFcn,
+                                                                    axis=0,
+                                                                    bIdx=activeNeus[epochIdx].item(),
                                                                     fcn=tms.late_comp.compute_delay,
                                                                     peakWidth=(tms.analysis_params['peristimParams']
                                                                                ['smoothingParams']['width'] + 0.25)))
@@ -315,12 +319,15 @@ def gp_extractor(subf, aggFcn, activeNeus, silencingType, extrcCol, postTi, tms)
             bIdx = [False] * subf.shape[0]
             bIdx[0] = True
             return pd.DataFrame(
-                [subf.loc[rotate(bIdx, idx), extrcCol].agg(aggFcn, axis=0, bIdx=activeNeus[epochIdx].item(),
+                [subf.loc[rotate(bIdx, idx), extrcCol].agg(aggFcn,
+                                                           axis=0,
+                                                           bIdx=activeNeus[epochIdx].item(),
                                                            fcn=tms.late_comp.compute_delay,
                                                            peakWidth=(tms.analysis_params['peristimParams']
                                                                       ['smoothingParams']['width'] + 0.25))
                  for idx in range(subf.shape[0])],
-                index=pd.MultiIndex.from_product([['MT'], subf.loc[:, 'MT'].to_numpy()])).T
+                index=pd.MultiIndex.from_product([['MT'], subf.loc[:, 'MT'].to_numpy()])
+            ).T
 
 
 # Modify violin plot to have unfilled areas

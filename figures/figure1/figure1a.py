@@ -193,7 +193,7 @@ if __name__ == '__main__':
     epochs = (
         {'selectionParams': {'Epoch': {key: value for key, value in zip_longest(keys, ('MC', 'L5'))}}},
         {'selectionParams': {'Epoch': {key: value for key, value in zip_longest(keys, ('SC', 'L5'))}}},
-
+        {'selectionParams': {'Epoch': {key: value for key, value in zip_longest(keys, ('VC', 'L5'))}}}
     )
     #{'selectionParams': {'Epoch': {key: value for key, value in zip_longest(keys, ('VC', 'L5'))}}},
 
@@ -217,9 +217,10 @@ if __name__ == '__main__':
     #       {'epochIndex': ('20200705', 'SC', 'L5', 'same', 'none', '1496'), 'neuIdx': 4},
     #       {'epochIndex': ('20200705', 'VC', 'L5', 'same', 'none', '1404'), 'neuIdx': 1}))
 
-    plot(tms, activeNeu, kind=plotKinds[1], colParams=epochs, xlim=[-2, 8], epochAndNeuron=
-         ({'epochIndex': ('20170201', 'MC', 'L5', 'none', 'none', '1407'), 'neuIdx': 0},
-          {'epochIndex': ('20170201', 'SC', 'L5', 'none', 'none', '1307'), 'neuIdx': 0}))
+    plot(tms, activeNeu, kind=plotKinds[1], colParams=epochs, xlim=[-25, 50], epochAndNeuron=
+         ({'epochIndex': ('20200520', 'MC', 'L5', 'none', 'none', '1438'), 'neuIdx': 1},
+          {'epochIndex': ('20200520', 'SC', 'L5', 'none', 'none', '1565'), 'neuIdx': 1},
+          {'epochIndex': ('20200705', 'VC', 'L5', 'same', 'none', '1404'), 'neuIdx': 0}))
 
     # Reset the number of threads for Numba to default
     nb.set_num_threads(nb.config.NUMBA_DEFAULT_NUM_THREADS)

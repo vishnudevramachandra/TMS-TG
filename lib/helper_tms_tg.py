@@ -67,13 +67,6 @@ class AnalysisParams(object):
                                 params['selectionParams']['Epoch'][epochKey] \
                                     = self.analysis_params['selectionParams']['Epoch'][epochKey]
 
-                    # Iterate over columns in selectionParams
-                    for col in params['selectionParams'].keys() & COLS_WITH_STRINGS:
-                        # Check if the value is not a tuple, set, list, or ndarray
-                        if not issubclass(type(params['selectionParams'][col]), tuple | set | list | np.ndarray):
-                            # If not, convert it to a tuple
-                            params['selectionParams'][col] = (params['selectionParams'][col],)
-
                 else:
                     # If selectionParams key doesn't exist, use previous value
                     params['selectionParams'] = self.analysis_params['selectionParams']
@@ -593,4 +586,10 @@ def comparator(ser, string):
     elif re.match('==', string):
         # Return True for elements in 'ser' that are equal to the specified numeral
         return ser == np.float_(re.sub('==', '', string))
+    elif re.match('!=', string):
+        # Return True for elements in 'ser' that are equal to the specified numeral
+        return ser != np.float_(re.sub('!=', '', string))
+    else:
+        raise ValueError(f'String \'{string}\' in tms.analysis_params has invalid comparator for floats. \n'
+                         f'Select one from this list [< : <= : >= : > : == : !=] and without leading/trailing spaces')
 
