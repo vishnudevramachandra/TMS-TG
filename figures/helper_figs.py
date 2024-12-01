@@ -230,17 +230,21 @@ def gb_addinfo(gbinfo, tms):
     return gbinfo.sort_index()
 
 
+# From a collection of keys find the closest matching key to an exemplar key
+def closest_matching_key(keys, inputKey):
+    df = pd.DataFrame([
+        [key,
+         [0 if x == y else np.inf if isinstance(x, str) else abs(x - y) for x, y in zip(key, inputKey)]
+         ]
+        for key in keys
+    ])
+    return df.iat[df.iloc[:, 1].apply(lambda cell: np.nansum(cell)).argmin(), 0]
+
+
 # Read peristimulus activity from blocksinfo dataframe
-def read_psActivity(ser):
-    out = list()
-    for item in ser:
-        keys = pd.Series(list(item.keys()))
-        key = keys[keys.apply(lambda unit:
-                              np.array([x == y if isinstance(x, str) else x >= y
-                                        for x, y in zip(unit, ['gaussian', np.nan, np.nan, np.nan, 50.0, 'TMS'])])
-                              .sum()).argmax()]
-        out.append(item[key][0])
-    return out, item[key][1]
+def read_PSFR(psActivity, key):
+    matchKey = closest_matching_key(psActivity.keys(), key)
+    return psActivity[matchKey]
 
 
 # Decorator for aggregation functions
@@ -258,18 +262,18 @@ def agg_dec(fcn):
 
 # Aggregate computed delay
 @agg_dec
-def delay_agg(ser, bIdx, fcn, peakWidth):
-    psFR, t = read_psActivity(ser)
-    return fcn(np.concatenate(psFR, axis=0).mean(axis=0),
-               t,
-               np.concatenate(psFR, axis=0).mean(axis=0)[t < 0, :].max(axis=0, keepdims=True),
+def delay_agg(psActivity, bIdx, fcn, peakWidth):
+    ps_FR, ps_T = read_PSFR(psActivity, ('gaussian', np.nan, np.nan, np.nan, 50.0, 'TMS'))
+    return fcn(ps_FR.mean(axis=0),
+               ps_T,
+               ps_FR.mean(axis=0)[ps_T < 0, :].max(axis=0, keepdims=True),
                peakWidth)[bIdx]
 
 
 # Aggregate computed peak firing rates
 @agg_dec
-def pkFr_agg(ser, bIdx):
-    psFR, t = read_psActivity(ser)
+def pkFr_agg(psActivity, bIdx):
+    psFR, t = read_PSFR(psActivity, ('gaussian', np.nan, np.nan, np.nan, 50.0, 'TMS'))
     return np.concatenate(psFR, axis=0).mean(axis=0)[np.ix_(np.logical_and(t > 5.0, t <= 50.0), bIdx)].max(axis=0)
 
 
@@ -316,18 +320,15 @@ def gp_extractor(subf, aggFcn, activeNeus, silencingType, extrcCol, postTi, tms)
 
             return gpOut
         case 'TGcut':
-            bIdx = [False] * subf.shape[0]
-            bIdx[0] = True
-            return pd.DataFrame(
-                [subf.loc[rotate(bIdx, idx), extrcCol].agg(aggFcn,
-                                                           axis=0,
-                                                           bIdx=activeNeus[epochIdx].item(),
-                                                           fcn=tms.late_comp.compute_delay,
-                                                           peakWidth=(tms.analysis_params['peristimParams']
-                                                                      ['smoothingParams']['width'] + 0.25))
-                 for idx in range(subf.shape[0])],
-                index=pd.MultiIndex.from_product([['MT'], subf.loc[:, 'MT'].to_numpy()])
-            ).T
+            return (subf[extrcCol]
+                    .apply(aggFcn,
+                           bIdx=activeNeus[epochIdx].item(),
+                           fcn=tms.late_comp.compute_delay,
+                           peakWidth=(tms.analysis_params['peristimParams']
+                                      ['smoothingParams']['width'] + 0.25))
+                    .apply(pd.Series)
+                    .set_index(pd.MultiIndex.from_product([['MT'], subf.loc[:, 'MT'].to_numpy()]))
+                    .T)
 
 
 # Modify violin plot to have unfilled areas

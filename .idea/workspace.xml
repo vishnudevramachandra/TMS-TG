@@ -4,13 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="fix: computation of significantly active neuron earlier utilised firing activity in the block with condition CoilDir == 'ML' and StimHem == RecHem, but now the block with the highest firing rate is used.">
+    <list default="true" id="7a2459ac-f6f2-4641-8efe-b64a6489c1d8" name="Changes" comment="feat: Filtering based on COLS_WITH_STRINGS now accepts all logical operators (&amp;, |, ^, !) and for filtering based on COLS_WITH_NUM it is now allowed to specify a range (e.g.,'MT': '&gt;=0.8&amp;&lt;=1.2' ).">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/figures/figure1/activeNeu_Cortex" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure1/activeNeu_Cortex" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/figures/figure1/figure1a.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure1/figure1a.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/figures/figure1/figure1b.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure1/figure1b.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/figures/blockplots_singleanimal.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/figures/blockplots_singleanimal.ipynb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/figures/figure4/figure4.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/figure4/figure4.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/figures/helper_figs.py" beforeDir="false" afterPath="$PROJECT_DIR$/figures/helper_figs.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/constants.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/constants.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/helper_tms_tg.py" beforeDir="false" afterPath="$PROJECT_DIR$/lib/helper_tms_tg.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tms_tg.py" beforeDir="false" afterPath="$PROJECT_DIR$/tms_tg.py" afterDir="false" />
     </list>
@@ -340,7 +339,7 @@
       <workItem from="1729071198133" duration="6608000" />
       <workItem from="1730372794048" duration="7822000" />
       <workItem from="1731612557321" duration="1873000" />
-      <workItem from="1731673513218" duration="105608000" />
+      <workItem from="1731673513218" duration="160936000" />
     </task>
     <task id="LOCAL-00001" summary="feat: read matlab/hdf5 files">
       <created>1688659386984</created>
@@ -527,7 +526,15 @@
       <option name="project" value="LOCAL" />
       <updated>1732443432145</updated>
     </task>
-    <option name="localTasksCounter" value="26" />
+    <task id="LOCAL-00026" summary="feat: Filtering based on COLS_WITH_STRINGS now accepts all logical operators (&amp;, |, ^, !) and for filtering based on COLS_WITH_NUM it is now allowed to specify a range (e.g.,'MT': '&gt;=0.8&amp;&lt;=1.2' ).">
+      <option name="closed" value="true" />
+      <created>1732807436822</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1732807436822</updated>
+    </task>
+    <option name="localTasksCounter" value="27" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -652,7 +659,8 @@
     <MESSAGE value="fix: Structure of figures" />
     <MESSAGE value="fix: Notebook rewritten" />
     <MESSAGE value="fix: computation of significantly active neuron earlier utilised firing activity in the block with condition CoilDir == 'ML' and StimHem == RecHem, but now the block with the highest firing rate is used." />
-    <option name="LAST_COMMIT_MESSAGE" value="fix: computation of significantly active neuron earlier utilised firing activity in the block with condition CoilDir == 'ML' and StimHem == RecHem, but now the block with the highest firing rate is used." />
+    <MESSAGE value="feat: Filtering based on COLS_WITH_STRINGS now accepts all logical operators (&amp;, |, ^, !) and for filtering based on COLS_WITH_NUM it is now allowed to specify a range (e.g.,'MT': '&gt;=0.8&amp;&lt;=1.2' )." />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: Filtering based on COLS_WITH_STRINGS now accepts all logical operators (&amp;, |, ^, !) and for filtering based on COLS_WITH_NUM it is now allowed to specify a range (e.g.,'MT': '&gt;=0.8&amp;&lt;=1.2' )." />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -669,7 +677,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tms_tg.py</url>
-          <line>429</line>
+          <line>422</line>
           <option name="timeStamp" value="1287" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
@@ -684,7 +692,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tms_tg.py</url>
-          <line>835</line>
+          <line>828</line>
           <option name="timeStamp" value="1306" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
@@ -723,29 +731,14 @@
           <option name="timeStamp" value="1321" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/figures/figure4/figure4.py</url>
-          <line>119</line>
-          <option name="timeStamp" value="1322" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/tms_tg.py</url>
-          <line>845</line>
+          <line>838</line>
           <option name="timeStamp" value="1329" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/figures/helper_figs.py</url>
-          <line>285</line>
+          <line>289</line>
           <option name="timeStamp" value="1351" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/figures/figure4/figure4.py</url>
-          <line>122</line>
-          <option name="timeStamp" value="1352" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/figures/figure4/figure4.py</url>
-          <line>68</line>
-          <option name="timeStamp" value="1354" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/figures/figure1/figure1a.py</url>
@@ -768,29 +761,19 @@
           <option name="timeStamp" value="1371" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/lib/helper_tms_tg.py</url>
-          <line>573</line>
-          <option name="timeStamp" value="1381" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/tms_tg.py</url>
-          <line>52</line>
-          <option name="timeStamp" value="1382" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/figures/helper_figs.py</url>
-          <line>271</line>
+          <line>275</line>
           <option name="timeStamp" value="1397" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/figures/figure4/figure4.py</url>
-          <line>52</line>
-          <option name="timeStamp" value="1408" />
+          <url>file://$PROJECT_DIR$/lib/helper_tms_tg.py</url>
+          <line>400</line>
+          <option name="timeStamp" value="1431" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/figures/figure4/figure4.py</url>
-          <line>41</line>
-          <option name="timeStamp" value="1409" />
+          <line>159</line>
+          <option name="timeStamp" value="1438" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>
@@ -807,7 +790,7 @@
     <SUITE FILE_PATH="coverage/tms_tg$figure3a.coverage" NAME="figure3a Coverage Results" MODIFIED="1707699029183" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure3" />
     <SUITE FILE_PATH="coverage/TMS_TG$Matdata.coverage" NAME="Matdata Coverage Results" MODIFIED="1688658637104" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/tms_tg$figure1b.coverage" NAME="figure1b Coverage Results" MODIFIED="1732650235390" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure1" />
-    <SUITE FILE_PATH="coverage/tms_tg$figure4.coverage" NAME="figure4 Coverage Results" MODIFIED="1732791067310" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure4" />
+    <SUITE FILE_PATH="coverage/tms_tg$figure4.coverage" NAME="figure4 Coverage Results" MODIFIED="1732990873171" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure4" />
     <SUITE FILE_PATH="coverage/tms_tg$figure1a.coverage" NAME="figure1a Coverage Results" MODIFIED="1732632130940" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/figures/figure1" />
     <SUITE FILE_PATH="coverage/tms_tg$matpy.coverage" NAME="matpy Coverage Results" MODIFIED="1714769943724" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />
     <SUITE FILE_PATH="coverage/tms_tg$dataanalysis__1_.coverage" NAME="dataanalysis (1) Coverage Results" MODIFIED="1694430882996" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lib" />

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import re
 from functools import lru_cache, wraps, reduce
-from lib.constants import COLS_WITH_STRINGS
+from lib.constants import COLS_WITH_PURE_STRINGS, COLS_WITH_STRINGS_AND_DIGITS
 import scipy
 import warnings
 from typing import Optional, Any
@@ -354,8 +354,8 @@ def _edit_blocksinfo(blocksinfo: pd.DataFrame, cond: str) -> pd.DataFrame:
                             group_keys=True,
                             sort=False)
     return (gp.apply(lambda x: _rowCombiner(x, gpExcludeCols)).
-            reset_index(level=list(np.setdiff1d(blocksinfo.columns, gpExcludeCols)))
-            [blocksinfo.columns])
+    reset_index(level=list(np.setdiff1d(blocksinfo.columns, gpExcludeCols)))
+    [blocksinfo.columns])
 
 
 # Function to merge selection parameters of two instances of analysis parameters so that it adheres to prescribed format
@@ -398,7 +398,7 @@ def merge_selectionParams(lSelParams: dict, rSelParams: dict, kind='Outer') -> d
         case 'Outer':
             # Iterate through paths in lSelParams
             for path in paths(lSelParams):
-                if path[0] in {'Epoch'} | COLS_WITH_STRINGS:
+                if path[0] in {'Epoch'} | COLS_WITH_PURE_STRINGS:
                     # Merge values from lSelParams and rSelParams at current path
                     set_nested_dict(merged, path, merge_outer(reduce(lambda d, k: d.get(k, None), path, lSelParams),
                                                               reduce(lambda d, k: d.get(k, None), path, rSelParams)))
@@ -546,7 +546,7 @@ class LateComponent(object):
             inflectionIdx = peaks[np.argwhere(peaks < shadowPeak)].max()
             return (offset
                     + (peaks[peaks < peakIdx].max() + 0.5 -
-                        ((waveform[inflectionIdx:inflectionIdx + 2].mean() - baselineFR) / df1[inflectionIdx])) * dt)
+                       ((waveform[inflectionIdx:inflectionIdx + 2].mean() - baselineFR) / df1[inflectionIdx])) * dt)
         inflectionIdx = peaks[np.argwhere(peaks < peakIdx)].max()
         return (offset
                 + (inflectionIdx + 0.5 -
@@ -569,27 +569,57 @@ def find_shadowPeak(peakIdx, dt, waveform, minPeakWidth, troughs):
 
 
 # Function that compares pd.Series to number using a string containing that numeral and also the comparison symbol
-def comparator(ser, string):
-    # Check if the string pattern matches one of the given symbols
-    if re.match('<=', string):
-        # Return True for elements in 'ser' that are less than or equal to the specified numeral
-        return ser <= np.float_(re.sub('<=', '', string))
-    elif re.match('<', string):
-        # Return True for elements in 'ser' that are less than specified numeral
-        return ser < np.float_(re.sub('<', '', string))
-    elif re.match('>=', string):
-        # Return True for elements in 'ser' that are greater than or equal to the specified numeral
-        return ser >= np.float_(re.sub('>=', '', string))
-    elif re.match('>', string):
-        # Return True for elements in 'ser' that are greater than the specified numeral
-        return ser > np.float_(re.sub('>', '', string))
-    elif re.match('==', string):
-        # Return True for elements in 'ser' that are equal to the specified numeral
-        return ser == np.float_(re.sub('==', '', string))
-    elif re.match('!=', string):
-        # Return True for elements in 'ser' that are equal to the specified numeral
-        return ser != np.float_(re.sub('!=', '', string))
-    else:
-        raise ValueError(f'String \'{string}\' in tms.analysis_params has invalid comparator for floats. \n'
-                         f'Select one from this list [< : <= : >= : > : == : !=] and without leading/trailing spaces')
+def num_comparator(ser, string):
 
+    boolIdx = (ser == ser)
+    for stringPart in re.split(r"\&|\|", string):
+
+        # Check if the string pattern matches one of the given symbols
+        if re.match('<=', stringPart):
+            # Return True for elements in 'ser' that are less than or equal to the specified numeral
+            boolIdx &= (ser <= np.float_(re.sub('<=', '', stringPart)))
+        elif re.match('<', stringPart):
+            # Return True for elements in 'ser' that are less than specified numeral
+            boolIdx &= (ser < np.float_(re.sub('<', '', stringPart)))
+        elif re.match('>=', stringPart):
+            # Return True for elements in 'ser' that are greater than or equal to the specified numeral
+            boolIdx &= (ser >= np.float_(re.sub('>=', '', stringPart)))
+        elif re.match('>', stringPart):
+            # Return True for elements in 'ser' that are greater than the specified numeral
+            boolIdx &= (ser > np.float_(re.sub('>', '', stringPart)))
+        elif re.match('==', stringPart):
+            # Return True for elements in 'ser' that are equal to the specified numeral
+            boolIdx &= (ser == np.float_(re.sub('==', '', stringPart)))
+        elif re.match('!=', stringPart):
+            # Return True for elements in 'ser' that are equal to the specified numeral
+            boolIdx &= (ser != np.float_(re.sub('!=', '', stringPart)))
+        else:
+            raise ValueError(f'String \'{string}\' in tms.analysis_params has invalid comparator for floats. \n'
+                             f'Select one from this list [< : <= : >= : > : == : !=] and without leading/trailing spaces')
+
+    return boolIdx
+
+
+def str_comparator(ser, string):
+
+    stringParts = re.split(r"(\&|\||\^)", string)
+    logicalOps = stringParts[1::2]
+    strList = stringParts[0::2]
+    boolIdx = ~ser.str.contains(strList[0][1:], case=False) if strList[0].startswith('!') \
+        else ser.str.contains(strList[0], case=False)
+    for string, logicalOp in zip(strList[1:], logicalOps):
+        match logicalOp:
+            case '&':
+                boolIdx &= ~ser.str.contains(string[1:], case=False) if string.startswith('!') \
+                    else ser.str.contains(string, case=False)
+            case '|':
+                boolIdx |= ~ser.str.contains(string[1:], case=False) if string.startswith('!') \
+                    else ser.str.contains(string, case=False)
+            case '^':
+                boolIdx ^= ~ser.str.contains(string[1:], case=False) if string.startswith('!') \
+                    else ser.str.contains(string, case=False)
+            case '_':
+                raise ValueError(f'String \'{stringParts}\' in tms.analysis_params has invalid comparator. \n'
+                                 f'Select one from this valid list [& : | : ^]')
+
+    return boolIdx

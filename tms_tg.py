@@ -4,7 +4,7 @@ import numpy as np
 import numba as nb
 import pandas as pd
 from statistics import mean, mode
-import os
+import os, re
 from typing import Optional, Any
 from itertools import zip_longest, product
 from functools import lru_cache, cached_property
@@ -12,7 +12,8 @@ import scipy
 
 from lib.matpy import MATfile
 import lib.helper_tms_tg as th
-from lib.constants import LAYERS, REGIONS, EPOCHISOLATORS, COLS_WITH_STRINGS, COLS_WITH_NUMS
+from lib.constants import (LAYERS, REGIONS, EPOCHISOLATORS, COLS_WITH_PURE_STRINGS, COLS_WITH_NUMS,
+                           COLS_WITH_STRINGS_AND_DIGITS)
 from lib.dataanalysis import peristim_firingrate, peristim_timestamp
 
 
@@ -50,35 +51,27 @@ def _filter_blocks_helper(blocksinfo, analysis_params, fIdx=None) -> tuple[pd.Da
 
     # Change the truth values of Index by doing floating point comparison on dataframe columns.
     # [Very important] Only using expression where the number is given after the arithmetic symbol is correct
+    # For e.g., '>=10' is correct usage but not '10<='.
+    # [Also very important] When using a range do it without spaces like this '>=10&<=50'
     selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_NUMS
     for col in selectCols:
-        for string in analysis_params['selectionParams'][col].split('&'):
-            fIdx &= th.comparator(blocksinfo[col], string)
+        fIdx &= th.num_comparator(blocksinfo[col], analysis_params['selectionParams'][col])
 
     # Change the truth values of Index by doing string comparison on dataframe columns
-    selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_STRINGS
+    # [Very important] When doing multi comparison its imperative to not use spaces inbetween like this; 'Lv1|Lv2&!Lv3'
+    selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_PURE_STRINGS
     for col in selectCols:
-        strings = analysis_params['selectionParams'][col].split(' ')
-        logicalOps = strings[1::2]
-        strList = strings[0::2]
-        boolIdx = ~blocksinfo[col].str.contains(strList[0][1:], case=False) if strList[0].startswith('!') \
-            else blocksinfo[col].str.contains(strList[0], case=False)
+        fIdx &= th.str_comparator(blocksinfo[col], analysis_params['selectionParams'][col])
 
-        for string, logicalOp in zip(strList[1:], logicalOps):
-            match logicalOp:
-                case '&':
-                    boolIdx &= ~blocksinfo[col].str.contains(string[1:], case=False) if string.startswith('!') \
-                        else blocksinfo[col].str.contains(string, case=False)
-                case '|':
-                    boolIdx |= ~blocksinfo[col].str.contains(string[1:], case=False) if string.startswith('!') \
-                        else blocksinfo[col].str.contains(string, case=False)
-                case '^':
-                    boolIdx ^= ~blocksinfo[col].str.contains(string[1:], case=False) if string.startswith('!') \
-                        else blocksinfo[col].str.contains(string, case=False)
-                case '_':
-                    raise ValueError(f'String \'{strings}\' in tms.analysis_params has invalid comparator. \n'
-                                     f'Select one from this valid list [& : | : ^]')
-        fIdx &= boolIdx
+    # Change the truth values of Index by doing string or floating point comparison depending on the context
+    # For e.g., 'Post 31mins|Post 35mins' uses string comparison.
+    # Whereas, '>=31&<=35' uses floating point comparison after converting the string literals to numbers
+    selectCols = analysis_params['selectionParams'].keys() & COLS_WITH_STRINGS_AND_DIGITS
+    for col in selectCols:
+        if re.search(r"[a-zA-Z]", analysis_params['selectionParams'][col]):
+            fIdx &= th.str_comparator(blocksinfo[col], analysis_params['selectionParams'][col])
+        else:
+            fIdx &= th.num_comparator(blocksinfo[col].str.extract('(\d+)'), analysis_params['selectionParams'][col])
 
     # Convert nan values to False
     fIdx = fIdx == 1

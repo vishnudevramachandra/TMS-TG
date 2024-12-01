@@ -18,5 +18,6 @@ MANIPULATION = {'MUS'}
 
 EPOCHISOLATORS = ['Animal', 'Region', 'Layer', 'CoilHemVsRecHem', 'Mov', 'Depth']
 COLS_WITH_NUMS = {'MSO ', 'MT', 'no. of Trigs', 'Stimpulses', 'Depth_int'}
-COLS_WITH_STRINGS = {'StimHem', 'CoilDir', 'TG-Injection ', 'RecArea ', 'RecHem', 'Filename',
-                     'Skin-Injection', 'Skin-Injection', 'TGOrifice', 'CortexAbl', 'TGcut'}
+COLS_WITH_PURE_STRINGS = {'StimHem', 'CoilDir', 'RecArea ', 'RecHem', 'CHvsRH'}
+COLS_WITH_STRINGS_AND_DIGITS = {'TG-Injection ', 'Filename', 'Skin-Injection', 'Skin-Injection',
+                                'TGOrifice', 'CortexAbl', 'TGcut'}

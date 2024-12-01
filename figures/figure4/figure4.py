@@ -10,14 +10,19 @@ from itertools import zip_longest, product
 from figures.helper_figs import (gb_addinfo, gp_extractor, delay_agg, compute_excludeIdx)
 
 
-def plot(tms, df, activeNeus, xlim=None, savefig=False):
+def plot(tms, df, activeNeus, cortexAblAndTGcutConds=None, colOrder=None, savefig=False):
     """
         Plot latency of late activity component.
 
     Args:
         tms: Instance of TMS class.
+        df: filtered blocksinfo.
         activeNeus: Active neurons determined by statistical test.
-        xlim (tuple): Limits for x-axis.
+        cortexAblAndTGcutConds: List of different pairs of cortical-ablation and TGcut conditions.
+        colOrder: List of different pairs of stimulus-hemisphere and coil-direction conditions.
+    Parameters:
+        savefig: Whether to save the figure
+        .
 
     Returns:
         None
@@ -38,17 +43,34 @@ def plot(tms, df, activeNeus, xlim=None, savefig=False):
                       axis=1).drop(
         columns=[('', 'CoilDir'), ('', 'CHvsRH'), ('', 'TGcut'), ('', 'CortexAbl'), 'colName'])
 
-    # cortexAblAndTGcutConds = ['No/No', 'LH/No', 'Both/No', 'LH/Lv1,Lv2,Lv3', 'Both/Lv1,Lv2,Lv3', 'LH/Rv1,Rv2,Rv3']
-    cortexAblAndTGcutConds = ['No/No', 'LH/No', 'Both/No',
-                              'LH/Lv1,Lv2', 'LH/Lv1,Lv2,Lv3', 'LH/Rv1,Rv2,Rv3', 'Both/Lv1,Lv2,Lv3',
-                              'LH/Lv1,Lv2,Lv3,Rv1,Rv2', 'Both/Lv1,Lv2,Lv3,Rv1,Rv2,Rv3']
+    # Set parameters that are not passed in.
+    if cortexAblAndTGcutConds is None:
+        cortexAblAndTGcutConds = ['No/No', 'LH/No', 'Both/No',
+                                  'LH/Lv1,Lv2', 'LH/Lv1,Lv2,Lv3', 'LH/Rv1,Rv2,Rv3', 'Both/Lv1,Lv2,Lv3',
+                                  'LH/Lv1,Lv2,Lv3,Rv1,Rv2', 'Both/Lv1,Lv2,Lv3,Rv1,Rv2,Rv3']
+
+        # Remove conditions from the list that are not present in the data and
+        # append conditions to the list that are present in the data but missing from the list.
+        cortexAblAndTGcutConds = [item for item in cortexAblAndTGcutConds
+                                  if item in delay['CortexAbl and TGcut'].unique()]
+        [cortexAblAndTGcutConds.append(item) for item in delay['CortexAbl and TGcut'].unique()
+         if item not in cortexAblAndTGcutConds]
+
+    if colOrder is None:
+        colOrder = ['same/ML', 'same/LM', 'opposite/ML', 'opposite/LM']
+
+        # Remove conditions from the list that are not present in the data and
+        # append conditions to the list that are present in the data but missing from the list.
+        colOrder = [item for item in colOrder if item in delay['StimHem and CoilDir'].unique()]
+        [colOrder.append(item) for item in delay['StimHem and CoilDir'].unique() if item not in colOrder]
+
     # Plot delay as swarm plot
     plt.style.use('default')
     swarmplot = sns.catplot(
         data=delay,
         kind='swarm', x='CortexAbl and TGcut', y='Delay (ms)', hue='MT', col='StimHem and CoilDir',
         order=cortexAblAndTGcutConds,
-        col_order=['same/ML', 'same/LM', 'opposite/ML', 'opposite/LM'],
+        col_order=colOrder,
         size=3, dodge=True, palette='deep', aspect=.5)
     for ax in swarmplot.axes.flat:
         ax.tick_params(axis='x', labelsize='small', labelrotation=90)
@@ -64,7 +86,7 @@ def plot(tms, df, activeNeus, xlim=None, savefig=False):
         data=delay,
         kind='box', x='CortexAbl and TGcut', y='Delay (ms)', col='StimHem and CoilDir',
         order=cortexAblAndTGcutConds,
-        col_order=['same/ML', 'same/LM', 'opposite/ML', 'opposite/LM'],
+        col_order=colOrder,
         aspect=0.5)
     for ax in boxplot.axes.flat:
         ax.tick_params(axis='x', labelsize='small', labelrotation=90)
@@ -98,11 +120,17 @@ if __name__ == '__main__':
     tms.analysis_params = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS,
                                                                          [tuple(tgCutAnimals), 'MC', None])),
                                                'MT': '>=0.8&<=1.2',
-                                               'TGOrifice': '!Post'}
+                                               'TGOrifice': '!Post',
+                                               'CoilDir': 'LM|ML',
+                                               'CHvsRH': 'same'}
                            }
+
+    # Filter blocksinfo using above defined selection parameters
     selectBlocksinfo, selectBlocksinfoIdx = tms.filter_blocks
-    # activeNeu = tms.stats_is_signf_active()
-    activeNeus = pd.read_pickle("./activeNeu_TGcut")
+
+    # Either run statistical test to find out active neurons or load it, if previously computed and saved.
+    activeNeus = pd.read_pickle("./activeNeu_TGcut") if os.path.isfile("./activeNeu_TGcut") \
+        else tms.stats_is_signf_active()
 
     # Update statistics and print N's
     epochIndices = selectBlocksinfo.index.unique()
@@ -122,8 +150,11 @@ if __name__ == '__main__':
                                   *tms.analysis_params['peristimParams']['timeWin'],
                                   tms.analysis_params['peristimParams']['trigger'])
 
+    # Swarm- & boxplot accept the order in which different data classes are displayed, whose sequence is defined here.
+    # cortexAblAndTGcutConds = ['No/No', 'LH/No', 'Both/No', 'LH/Lv1,Lv2,Lv3', 'Both/Lv1,Lv2,Lv3', 'LH/Rv1,Rv2,Rv3']
+
     # Generate plots
-    plot(tms, selectBlocksinfo, activeNeus, xlim=[-20, 60])
+    plot(tms, selectBlocksinfo, activeNeus)
 
     # Save the updated (join and apply) grandBlocksinfo if the original exists
     if os.path.isfile('../../grandBlocksinfo'):
