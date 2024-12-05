@@ -247,22 +247,22 @@ def read_PSFR(psActivity, key):
     return psActivity[matchKey]
 
 
-# Decorator for aggregation functions
-def agg_dec(fcn):
+# Decorator for extraction functions
+def extr_dec(fcn):
     @wraps(fcn)
     def arg_filter(arg, **kwargs):
         match fcn.__name__:
-            case 'delay_agg':
+            case 'delay_extr':
                 return fcn(arg, **kwargs)
-            case 'pkFr_agg':
+            case 'pkFr_extr':
                 return fcn(arg, bIdx=kwargs['bIdx'])
 
     return arg_filter
 
 
-# Aggregate computed delay
-@agg_dec
-def delay_agg(psActivity, bIdx, fcn, peakWidth):
+# Extract computed delay
+@extr_dec
+def delay_extr(psActivity, bIdx, fcn, peakWidth):
     ps_FR, ps_T = read_PSFR(psActivity, ('gaussian', np.nan, np.nan, np.nan, 50.0, 'TMS'))
     return fcn(ps_FR.mean(axis=0),
                ps_T,
@@ -270,11 +270,11 @@ def delay_agg(psActivity, bIdx, fcn, peakWidth):
                peakWidth)[bIdx]
 
 
-# Aggregate computed peak firing rates
-@agg_dec
-def pkFr_agg(psActivity, bIdx):
+# Extract computed peak firing rates
+@extr_dec
+def pkFr_extr(psActivity, bIdx):
     psFR, t = read_PSFR(psActivity, ('gaussian', np.nan, np.nan, np.nan, 50.0, 'TMS'))
-    return np.concatenate(psFR, axis=0).mean(axis=0)[np.ix_(np.logical_and(t > 5.0, t <= 50.0), bIdx)].max(axis=0)
+    return psFR.mean(axis=0)[np.ix_(np.logical_and(t > 5.0, t <= 50.0), bIdx)].max(axis=0)
 
 
 # Rotate a list
@@ -282,47 +282,65 @@ def rotate(array: list, step: int):
     return array[-step:] + array[:-step]
 
 
+# Aggregate computed peak firing rates of a series
+def psActivity_agg(ser):
+    out = ser.iloc[0]
+    for psActivity in ser.iloc[1:]:
+        for key in out:
+            if key in out:
+                out[key][0] = np.concatenate([out[key][0], psActivity[key][0]], axis=0)
+            else:
+                out[key] = psActivity[key]
+    return pd.Series([out])
+
+
 # Extract grand data from sub-frames
-def gp_extractor(subf, aggFcn, activeNeus, silencingType, extrcCol, postTi, tms):
-    epochIdx = subf.index.unique()
+def gp_extractor(subf, extrFcn, activeNeus, silencingType, extrcCol, postTi, tms):
+    epochIdx = subf.index.unique()[0]
     match silencingType:
         case 'TG-Injection ' | 'Skin-Injection' | 'TGOrifice':
+            assert extrcCol == 'psActivity', f'aggregation along columns "{extrcCol}" not implemented, exiting...'
             postT = subf[silencingType].str.extract('(\d+)').astype('float64')[0]
             gpOut = pd.DataFrame()
-            mtTypes = subf['MT'].unique()
-            for mtType in mtTypes:
+
+            for mtType in subf['MT'].unique():
                 selectMTIdx = subf['MT'] == mtType
-                out = [subf.loc[blockIdx, extrcCol].agg(aggFcn,
-                                                        axis=0,
-                                                        bIdx=activeNeus[epochIdx].item(),
-                                                        fcn=tms.late_comp.compute_delay,
-                                                        peakWidth=
-                                                        tms.analysis_params['peristimParams']['smoothingParams'][
-                                                            'width'] + 0.25)
-                       if any(blockIdx := subf[silencingType].str.contains('Pre') & selectMTIdx)
-                       else np.repeat(np.nan, activeNeus[epochIdx].item().sum())]
+                out = []
 
                 for ti in postTi:
-                    blockIdx = (ti[0] <= postT) & (postT < ti[1]) & selectMTIdx
-                    if any(blockIdx):
-                        out.append(subf.loc[blockIdx, extrcCol].agg(aggFcn,
-                                                                    axis=0,
-                                                                    bIdx=activeNeus[epochIdx].item(),
-                                                                    fcn=tms.late_comp.compute_delay,
-                                                                    peakWidth=(tms.analysis_params['peristimParams']
-                                                                               ['smoothingParams']['width'] + 0.25)))
+                    if isinstance(ti, str):
+                        blockIdx = subf[silencingType].str.contains('Pre', case=False) & selectMTIdx
                     else:
-                        out.append(np.repeat(np.nan, activeNeus[epochIdx].item().sum()))
+                        blockIdx = (ti[0] <= postT) & (postT < ti[1]) & selectMTIdx
+                    if any(blockIdx):
+                        out.append(
+                            subf.loc[blockIdx, extrcCol]
+                            .agg(psActivity_agg)
+                            .apply(extrFcn,
+                                   bIdx=activeNeus[epochIdx],
+                                   fcn=tms.late_comp.compute_delay,
+                                   peakWidth=tms.analysis_params['peristimParams']['smoothingParams']['width'] + 0.25)
+                            .item()
+                            if blockIdx.sum() > 1 else
+                            subf.loc[blockIdx, extrcCol]
+                            .apply(extrFcn,
+                                   bIdx=activeNeus[epochIdx],
+                                   fcn=tms.late_comp.compute_delay,
+                                   peakWidth=tms.analysis_params['peristimParams']['smoothingParams']['width'] + 0.25)
+                            .item()
+                        )
+                    else:
+                        out.append(np.repeat(np.nan, activeNeus[epochIdx].sum()))
 
                 gpOut = pd.concat((gpOut,
-                                   pd.DataFrame({key: value for key, value in zip(['Pre', *map(str, postTi), 'MT'],
+                                   pd.DataFrame({key: value for key, value in zip([*map(str, postTi), 'MT'],
                                                                                   [*out, mtType])})))
 
             return gpOut
         case 'TGcut':
             return (subf[extrcCol]
-                    .apply(aggFcn,
-                           bIdx=activeNeus[epochIdx].item(),
+                    .apply(extrFcn,
+                           bIdx=activeNeus[epochIdx],
                            fcn=tms.late_comp.compute_delay,
                            peakWidth=(tms.analysis_params['peristimParams']
                                       ['smoothingParams']['width'] + 0.25))

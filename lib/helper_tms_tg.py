@@ -235,10 +235,10 @@ def _check_and_sort_mso_order(matdata, blocksinfo) -> None:
         if any([re.search(r'/', item) for item in
                 [matdata[epochIndex][ref].flatten().tobytes().decode('utf-16')
                  for ref in matdata[epochIndex]['blockInfo/MSO'].flatten()]]):
-            warnings.warn(f'Cannot check the MSO order in blocksinfo for epoch {epochIndex} using mat-data information.'
-                          f' Hence, using the MSO order in blocksinfo as it is; keep in mind that the source of this '
-                          f'MSO order contained in infofile has to match the true recording MSO order, otherwise wrong '
-                          f'MSO will be associated to epochs [Katastrophe].')
+            # warnings.warn(f'Cannot check the MSO order in blocksinfo for epoch {epochIndex} using mat-data information.'
+            #               f' Hence, using the MSO order in blocksinfo as it is; keep in mind that the source of this '
+            #               f'MSO order contained in infofile has to match the true recording MSO order, otherwise wrong '
+            #               f'MSO will be associated to epochs [Katastrophe].')
             continue
 
         mso = _read_MSO(matdata[epochIndex])
@@ -570,7 +570,6 @@ def find_shadowPeak(peakIdx, dt, waveform, minPeakWidth, troughs):
 
 # Function that compares pd.Series to number using a string containing that numeral and also the comparison symbol
 def num_comparator(ser, string):
-
     boolIdx = (ser == ser)
     for stringPart in re.split(r"\&|\|", string):
 
@@ -601,7 +600,6 @@ def num_comparator(ser, string):
 
 
 def str_comparator(ser, string):
-
     stringParts = re.split(r"(\&|\||\^)", string)
     logicalOps = stringParts[1::2]
     strList = stringParts[0::2]

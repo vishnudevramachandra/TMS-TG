@@ -2,17 +2,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import copy
 import os
 
-from tms_tg import TMSTG, EPOCHISOLATORS, hem_CoilDir_selector
-from itertools import zip_longest, product
-from figures.helper_figs import (gb_addinfo, gp_extractor, delay_agg, compute_excludeIdx)
+from tms_tg import TMSTG, EPOCHISOLATORS
+from itertools import zip_longest
+from figures.helper_figs import gb_addinfo, gp_extractor, delay_extr
 
 
-def plot(tms, df, activeNeus, cortexAblAndTGcutConds=None, colOrder=None, savefig=False):
+def plot_fig4(tms, df, activeNeus, cortexAblAndTGcutConds=None, colOrder=None, savefig=False):
     """
-        Plot latency of late activity component.
+        Plot the latency of late activity component.
 
     Args:
         tms: Instance of TMS class.
@@ -21,7 +20,7 @@ def plot(tms, df, activeNeus, cortexAblAndTGcutConds=None, colOrder=None, savefi
         cortexAblAndTGcutConds: List of different pairs of cortical-ablation and TGcut conditions.
         colOrder: List of different pairs of stimulus-hemisphere and coil-direction conditions.
     Parameters:
-        savefig: Whether to save the figure
+        savefig: Whether to save the figure or not
         .
 
     Returns:
@@ -30,7 +29,7 @@ def plot(tms, df, activeNeus, cortexAblAndTGcutConds=None, colOrder=None, savefi
 
     # Compute delay
     delay = df.groupby(by=df.index.names + ['CoilDir', 'CHvsRH', 'TGcut', 'CortexAbl', 'RecArea ']) \
-        .apply(gp_extractor, delay_agg, activeNeus, 'TGcut', 'psActivity', None, tms)
+        .apply(gp_extractor, delay_extr, activeNeus, 'TGcut', 'psActivity', None, tms)
     delay.reset_index(['CoilDir', 'CHvsRH', 'TGcut', 'CortexAbl', 'RecArea '], col_level=1, inplace=True)
     delay = delay.melt(id_vars=[item for item in delay.columns if item[0] == ''],
                        value_vars=[item for item in delay.columns if item[0] == 'MT'],
@@ -64,7 +63,7 @@ def plot(tms, df, activeNeus, cortexAblAndTGcutConds=None, colOrder=None, savefi
         colOrder = [item for item in colOrder if item in delay['StimHem and CoilDir'].unique()]
         [colOrder.append(item) for item in delay['StimHem and CoilDir'].unique() if item not in colOrder]
 
-    # Plot delay as swarm plot
+    # Plot latency as swarm plot
     plt.style.use('default')
     swarmplot = sns.catplot(
         data=delay,
@@ -81,7 +80,7 @@ def plot(tms, df, activeNeus, cortexAblAndTGcutConds=None, colOrder=None, savefi
         plt.savefig('figure4_swarm.pdf', dpi='figure', format='pdf')
     swarmplot.figure.show()
 
-    # Plot delay as box plot
+    # Plot latency as box plot
     boxplot = sns.catplot(
         data=delay,
         kind='box', x='CortexAbl and TGcut', y='Delay (ms)', col='StimHem and CoilDir',
@@ -115,7 +114,7 @@ if __name__ == '__main__':
 
     # Define the selection parameters for TGcut animals
     tgCutAnimals = tms.blocksinfo[
-        tms.blocksinfo['TGcut'].str.contains('Lv1|Lv2|Lv3|Rv1|Rv2|Rv3')
+        tms.blocksinfo['TGcut'].str.contains('Lv1|Lv2|Lv3|Rv1|Rv2|Rv3', case=False)
     ].index.get_level_values('Animal').unique()
     tms.analysis_params = {'selectionParams': {'Epoch': dict(zip_longest(EPOCHISOLATORS,
                                                                          [tuple(tgCutAnimals), 'MC', None])),
@@ -137,12 +136,12 @@ if __name__ == '__main__':
     animalNumsEpochNumsAndActiveNeuronNums = ((np.unique([item[0] for item in epochIndices]).size,
                                                len(epochIndices),
                                                [activeNeus[item].sum() for item in epochIndices]))
-    print('[(Number of Animals, Number of Epochs, Number of Neurons per epoch), ...]: ',
+    print('[(Number of Animals, Number of Epochs, Number of Active Neurons per epoch), ...]: \n',
           animalNumsEpochNumsAndActiveNeuronNums)
 
     # Check if there are any valid epoch indices to plot
     if not any(epochIndices):
-        print(f'Cannot plot TGOrifice as the associated data is missing in this group of animals')
+        print(f'Cannot plot TGcut as the associated data is missing in this group of animals')
         quit()
 
     # Compute peristimulus firing rate if not already done and save it in blocksinfo for later use
@@ -154,7 +153,7 @@ if __name__ == '__main__':
     # cortexAblAndTGcutConds = ['No/No', 'LH/No', 'Both/No', 'LH/Lv1,Lv2,Lv3', 'Both/Lv1,Lv2,Lv3', 'LH/Rv1,Rv2,Rv3']
 
     # Generate plots
-    plot(tms, selectBlocksinfo, activeNeus)
+    plot_fig4(tms, selectBlocksinfo, activeNeus)
 
     # Save the updated (join and apply) grandBlocksinfo if the original exists
     if os.path.isfile('../../grandBlocksinfo'):

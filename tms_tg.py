@@ -557,8 +557,8 @@ class TMSTG(object):
             for key in LAYERS[cRegion]:
                 df.loc[(LAYERS[cRegion][key][0] <= df['Depth_int'])
                        & (df['Depth_int'] < LAYERS[cRegion][key][1])
-                       & df['Region'].str.contains(cRegion), EPOCHISOLATORS[2]] \
-                    = key
+                       & df['Region'].str.contains(cRegion),
+                    EPOCHISOLATORS[2]] = key
 
         # Assign values to the third epoch isolator based on 'StimHem' and 'RecHem'
         if not df['StimHem'].isna().all():
@@ -820,7 +820,6 @@ class TMSTG(object):
 
 
 if __name__ == '__main__':
-
     # Load TMSTG object using a list containing the locations of the data of individual animals
     animalList = r'G:\Vishnu\data\TMSTG\animalList.xlsx'
     tms = TMSTG.load(animalList)
@@ -853,4 +852,3 @@ if __name__ == '__main__':
 
     # Display delays
     delays
-
